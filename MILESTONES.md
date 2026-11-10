@@ -5,7 +5,7 @@ persistence, tests, Docker, CI. The next milestones are the features interviewer
 so **build them yourself**: each one lists what to build, what "done" means, and the questions it
 prepares you for. Write the code yourself and get each PR reviewed before merging.
 
-## M2. Titles, forking, and a gallery (frontend + REST + SQL)
+## M2. Titles, forking, and a gallery (done; see docs/M2_EXPLAINED.md)
 - Add `title` and `forked_from` columns (write a migration, don't edit the CREATE TABLE).
 - Title is collaborative: store it in `doc.getMap('meta')` and show it in the header.
 - `POST /api/shaders/:id/fork` copies the current document into a new shader.
