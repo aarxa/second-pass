@@ -1,6 +1,7 @@
 // Gallery: every shader, newest first, loaded a page at a time with the server's cursor.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { TopBar } from './theme';
 
 interface Item {
   id: string;
@@ -67,12 +68,9 @@ export function Gallery() {
 
   return (
     <div className="page">
-      <header>
-        <Link to="/gallery" className="brand">Second Pass</Link>
-        <span className="muted">Gallery</span>
-        <Link to="/agent" className="header-link" style={{ marginLeft: 'auto' }}>Agent runs</Link>
-        <button onClick={() => navigate('/')}>New shader</button>
-      </header>
+      <TopBar active="gallery">
+        <button className="push" onClick={() => navigate('/')}>New shader</button>
+      </TopBar>
       <div className="gallery">
         {items.map((it) => (
           <Link key={it.id} to={`/s/${it.id}`} className="card">
