@@ -54,6 +54,8 @@ async function main() {
     await mkdir(out, { recursive: true });
     const models = model instanceof ClaudeModel ? model.models : 'fake';
     await writeFile(path.join(out, 'trace.json'), JSON.stringify({ ...trace, models }, null, 2));
+    // Keep the sketch with the run, so export-run can show it next to the brief in the replay.
+    if (sketchPath) await writeFile(path.join(out, `sketch${path.extname(sketchPath).toLowerCase() === '.png' ? '.png' : '.jpg'}`), await readFile(sketchPath));
     if (trace.code) {
       await writeFile(path.join(out, 'final.glsl'), trace.code);
       const shot = await renderer.render(trace.code);

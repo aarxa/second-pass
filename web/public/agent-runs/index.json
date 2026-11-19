@@ -1,5 +1,30 @@
 [
   {
+    "id": "kiwi-still-life",
+    "title": "Still life with kiwis",
+    "request": "Make a shader of the attached sketch. Notes: Bring this still life to life: the cut kiwi halves glisten, with their ring of dark seeds and pale centres, the apple catches a warm light that slowly moves across the scene, and everything rests on a soft white cloth.",
+    "models": {
+      "writer": "claude-opus-5-5",
+      "judge": "claude-opus-5-5"
+    },
+    "date": "2026-11-19T14:14:01.100Z",
+    "rounds": 1,
+    "scores": [
+      7
+    ],
+    "passed": true,
+    "costUsd": 0.312,
+    "seconds": 145,
+    "thumb": "kiwi-still-life.jpg",
+    "finalFrames": [
+      "kiwi-still-life-p1-0.jpg",
+      "kiwi-still-life-p1-2.jpg",
+      "kiwi-still-life-p1-5.jpg",
+      "kiwi-still-life-p1-8.jpg"
+    ],
+    "sketch": "kiwi-still-life-sketch.jpg"
+  },
+  {
     "id": "black-hole",
     "title": "Black hole",
     "request": "Make a shader: a black hole with a blazing accretion disk, bending the light of the stars behind it",

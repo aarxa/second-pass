@@ -17,7 +17,7 @@ import { ShaderRenderer } from './renderer';
 import { lineDiff, planComment } from './agentText';
 import { Inline, Prose, plain } from './prose';
 import { QUOTES } from './quotes';
-import type { Run, RunStep } from './agentRun';
+import { briefText, type Run, type RunStep } from './agentRun';
 import { duration, modelName, money } from './Runs';
 import { TopBar, editorTheme } from './theme';
 
@@ -314,7 +314,7 @@ export function Replay() {
   const stopShown = run.steps[last]?.type === 'stop' && shown >= last;
   const current = passes.find((p) => shown >= p.first && shown <= p.last) ?? (stopShown ? passes.at(-1) : undefined);
   const best = run.scores.length ? Math.max(...run.scores) : null;
-  const brief = run.request.replace(/^Make a shader: /, '');
+  const brief = briefText(run.request);
 
   // The reel: a pass's frames light up once that pass has been rendered; the playhead sits after them.
   const reelPasses = run.reel.map((rp) => ({ rp, pass: passes.find((p) => p.round === rp.round) }));
@@ -341,8 +341,14 @@ export function Replay() {
         <div className="code" ref={editorEl} />
         <div className="side">
           <div className="brief-row">
-            <span className="lab">Brief</span>
-            <span className="q">“{brief}”</span>
+            {run.sketch && (
+              <a className="brief-sketch" href={`/agent-runs/${run.sketch}`} target="_blank" rel="noreferrer" title="The sketch it was given (opens full size)">
+                <img src={`/agent-runs/${run.sketch}`} alt="The sketch the agent was given" />
+                <span>Sketch</span>
+              </a>
+            )}
+            <span className="lab">{run.sketch ? 'Notes' : 'Brief'}</span>
+            <span className={brief.length > 90 ? 'q long' : 'q'}>“{brief}”</span>
             <span className="meta">{modelName(run.models.writer)} writes · {modelName(run.models.judge)} judges · pass mark {run.passScore}</span>
           </div>
 

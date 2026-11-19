@@ -117,7 +117,23 @@ export class ClaudeModel implements Model {
     return { verdict: VerdictSchema.parse(parseJson(msg)), usage: usage(this.o.judgeModel, msg) };
   }
 
-  private async call(model: string, effort: ClaudeOptions['writerEffort'], system: string, messages: Anthropic.Beta.BetaMessageParam[], format: { type: 'json_schema'; schema: Record<string, unknown> }, onText?: (snapshot: string) => void) {
+  /**
+   * One model call, retried up to twice if the connection fails partway (a long streamed reply can be
+   * cut off: "terminated") or the API is briefly overloaded. Anything else, like a refusal, isn't
+   * retried. A retried reply starts over, so its plan streams in again from the beginning.
+   */
+  private async call(...args: Parameters<ClaudeModel['callOnce']>) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await this.callOnce(...args);
+      } catch (e) {
+        if (attempt >= 3 || !isTransient(e)) throw e;
+        await new Promise((r) => setTimeout(r, attempt * 3000));
+      }
+    }
+  }
+
+  private async callOnce(model: string, effort: ClaudeOptions['writerEffort'], system: string, messages: Anthropic.Beta.BetaMessageParam[], format: { type: 'json_schema'; schema: Record<string, unknown> }, onText?: (snapshot: string) => void) {
     // Streamed so long shaders never hit an HTTP timeout. Server-side fallbacks re-run a request on
     // another model if a safety classifier declines it (rare for shader code, but it fails softly).
     // Haiku has no server-side fallback, so it is only requested for the models that support it.
@@ -160,4 +176,11 @@ function usage(model: string, msg: Anthropic.Beta.BetaMessage): Usage {
   const inputTokens = msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0);
   const outputTokens = msg.usage.output_tokens;
   return { inputTokens, outputTokens, costUsd: (inputTokens * pin + outputTokens * pout) / 1e6 };
+}
+
+/** A failure worth retrying: a dropped connection, or the API being briefly unavailable or overloaded. */
+export function isTransient(e: unknown): boolean {
+  if (e instanceof Anthropic.APIConnectionError) return true;
+  if (e instanceof Anthropic.APIError && e.status !== undefined) return [408, 409, 429, 500, 502, 503, 504, 529].includes(e.status);
+  return /terminated|ECONNRESET|socket hang up|fetch failed|other side closed/i.test(e instanceof Error ? e.message : String(e));
 }

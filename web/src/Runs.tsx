@@ -2,7 +2,7 @@
 // (web/public/agent-runs/index.json, written by `npm run export-run` in agent/), so it costs nothing.
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { RunSummary } from './agentRun';
+import { briefText, type RunSummary } from './agentRun';
 import { TopBar } from './theme';
 
 export const money = (usd: number) => (usd < 0.01 ? '<$0.01' : `$${usd.toFixed(2)}`);
@@ -76,12 +76,13 @@ function RunCard({ r }: { r: RunSummary }) {
         <img src={`/agent-runs/${r.thumb}`} alt="" loading="lazy" />
         {frames.map((f, i) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" className={`flip${i === frame ? ' on' : ''}`} />)}
         {frame >= 0 && <span className="flip-t">{[0, 2, 5, 8][frame] ?? ''} s</span>}
+        {r.sketch && <img className="sketch-inset" src={`/agent-runs/${r.sketch}`} alt="The sketch it was given" loading="lazy" />}
       </div>
       {frames.length > 0 && (
         <div className="film"><div className="mini-reel">{frames.map((f, i) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" className={i === frame ? 'on' : ''} />)}</div></div>
       )}
       <div className="t">{r.title}</div>
-      <div className="q">“{r.request.replace(/^Make a shader: /, '')}”</div>
+      <div className="q">{r.sketch && <span className="from-sketch">From a sketch · </span>}“{briefText(r.request)}”</div>
       <div className="row">
         {r.scores.map((s, i) => (
           <span key={i} className={`score-chip${i === r.scores.length - 1 && r.passed ? ' ok' : ''}`}>{s}</span>

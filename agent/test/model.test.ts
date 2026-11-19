@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { partialPlan } from '../src/model.ts';
+import { isTransient, partialPlan } from '../src/model.ts';
 import { planComment } from '../src/room.ts';
 
 describe('partialPlan', () => {
@@ -21,5 +21,14 @@ describe('planComment', () => {
       expect(line.startsWith('//')).toBe(true);
       expect(line.length).toBeLessThanOrEqual(40);
     }
+  });
+});
+
+describe('isTransient', () => {
+  it('retries a stream cut off partway and a dropped connection, not a refusal', () => {
+    expect(isTransient(new Error('terminated'))).toBe(true);
+    expect(isTransient(new Error('read ECONNRESET'))).toBe(true);
+    expect(isTransient(new Error('the model declined (cyber)'))).toBe(false);
+    expect(isTransient(new Error('the reply hit max_tokens before finishing'))).toBe(false);
   });
 });
