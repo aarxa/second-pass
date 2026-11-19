@@ -8,7 +8,7 @@
 // Each step is animated from a known starting point (the code after the previous step), so pausing,
 // resuming and jumping to any step always land in a consistent state.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { cpp } from '@codemirror/lang-cpp';
@@ -16,6 +16,7 @@ import { cpp } from '@codemirror/lang-cpp';
 import { ShaderRenderer } from './renderer';
 import { lineDiff, planComment } from './agentText';
 import { Inline, Prose, plain } from './prose';
+import { QUOTES } from './quotes';
 import type { Run, RunStep } from './agentRun';
 import { duration, modelName, money } from './Runs';
 import { TopBar, editorTheme } from './theme';
@@ -66,8 +67,27 @@ function stageAt(s: RunStep | undefined): Stage {
   return s.type;
 }
 
+const shorten = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+
+/**
+ * The judge's main point about a pass: a hand-picked quote if there is one; else its first bold
+ * heading; else, for a pass that didn't make the mark, its first sentence that names a problem;
+ * else its first sentence. Long sentences are shortened.
+ */
+function mainPoint(runId: string, round: number, critique: string, passed: boolean): string {
+  const picked = QUOTES[runId]?.[round];
+  if (picked) return picked;
+  const bold = /\*\*([^*\n]+)\*\*/.exec(critique)?.[1];
+  if (bold) return bold.trim();
+  const sentences = plain(critique).match(/[^.!?]+[.!?]+/g)?.map((s) => s.trim()) ?? [plain(critique)];
+  const critical = !passed && sentences.find((s) => s.length > 30 && /\b(not|no|isn't|doesn't|missing|frozen|barely|lacks?|too|weak|but|however)\b/i.test(s));
+  const pick = critical || sentences[0] || '';
+  return pick.length > 200 ? pick.slice(0, 197).trimEnd() + '…' : pick;
+}
+
 export function Replay() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState(-1); // last step fully shown
@@ -159,7 +179,8 @@ export function Replay() {
 
   const insert = (at: number, text: string) => {
     const view = viewRef.current!;
-    view.dispatch({ changes: { from: at, insert: text }, selection: { anchor: at + text.length }, scrollIntoView: true });
+    const from = Math.min(at, view.state.doc.length); // never past the end (an edge seen once on a last line)
+    view.dispatch({ changes: { from, insert: text }, selection: { anchor: from + text.length }, scrollIntoView: true });
   };
 
   /**
@@ -313,6 +334,7 @@ export function Replay() {
             {[1, 2, 4].map((s) => <option key={s} value={s}>{s}×</option>)}
           </select>
           <button className="secondary" onClick={() => seek(last)} disabled={finished}>Skip to end</button>
+          {run.galleryId && <button className="secondary" onClick={() => navigate(`/s/${run.galleryId}`)} title="Open the shader it kept in the editor, to play with or fork">Open in editor</button>}
         </div>
       </TopBar>
       <main>
@@ -404,6 +426,36 @@ export function Replay() {
               );
             })}
           </div>
+          {finished && (() => {
+            // Once the replay has finished: the first and the last judged pass side by side.
+            const judgedPasses = passes.filter((p) => p.judge);
+            const a = judgedPasses[0], b = judgedPasses[judgedPasses.length - 1];
+            if (!a || !b || a === b) return null;
+            const col = (p: Pass) => (
+              <div className="compare-col">
+                <div className="compare-top"><span>Pass {p.round}</span><b>{p.judge!.score}<small>/10</small></b></div>
+                <div className="film strip4">
+                  {(run.reel.find((r) => r.round === p.round)?.frames ?? []).map((f) => (
+                    <figure key={f.t}><img src={`/agent-runs/${f.src}`} alt={`Pass ${p.round} at ${f.t} s`} /><figcaption>{f.t} s</figcaption></figure>
+                  ))}
+                </div>
+                <p className="compare-note"><b>Judge:</b> {mainPoint(run.id, p.round, p.judge!.critique, p.judge!.score >= run.passScore)}</p>
+              </div>
+            );
+            return (
+              <section className="compare" aria-label="First and last pass compared">
+                <h3>Pass {a.round} → pass {b.round}</h3>
+                <div className="compare-grid">
+                  {col(a)}
+                  <div className="compare-mid">
+                    <span aria-hidden="true">→</span>
+                    {a.judge!.fixes.length > 0 && <><b>It asked for</b><ul>{a.judge!.fixes.slice(0, 2).map((f, i) => <li key={i}>{shorten(plain(f), 110)}</li>)}</ul></>}
+                  </div>
+                  {col(b)}
+                </div>
+              </section>
+            );
+          })()}
         </div>
       </main>
     </div>

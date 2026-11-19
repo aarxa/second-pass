@@ -1,23 +1,17 @@
 // The home page: what Second Pass is, shown with real runs. Everything on it is static (runs and
 // pictures are files on the CDN), so it opens instantly even while the server is asleep.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { keptCode, type Run, type RunSummary } from './agentRun';
-import { ShaderRenderer } from './renderer';
+import { LiveShader } from './LiveShader';
 import { duration, money } from './Runs';
 import { plain } from './prose';
+import { QUOTES } from './quotes';
 import { GITHUB_URL, TopBar } from './theme';
 
 // The runs the page features. If one is missing from the list, the page falls back to others.
 const HERO_RUN = 'black-hole';
 const LOOP_RUN = 'synthwave';
-// Short excerpts of the judge's critique for the featured run (the full text is in its replay).
-const QUOTES: Record<string, Record<number, string>> = {
-  synthwave: {
-    1: "The grid's horizontal lines sit at exactly the same screen positions at 0s, 2s, 5s and 8s … from these frames it looks frozen.",
-    2: 'This is a clear synthwave sunset. The striped yellow-to-pink sun sinks steadily across the frames.',
-  },
-};
 const firstSentence = (s: string) => { const t = plain(s); return (t.match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim(); };
 
 // Picks from the gallery, listed here rather than fetched so the home page never waits for the server.
@@ -40,46 +34,6 @@ const SNIPPET = `void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   fragColor = vec4(col, 1.0);
 }`;
 const SNIPPET_CURSORS: Record<number, [string, string]> = { 3: ['Quiet Fox', '#f97316'], 6: ['Neon Koi', '#3b82f6'] };
-
-/** A shader running live on the page, over a still picture of it (shown until it compiles, or if it can't). */
-function LiveShader({ code, still, label }: { code: string | null; still?: string; label: string }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [running, setRunning] = useState(false);
-  useEffect(() => {
-    const el = canvas.current;
-    if (!code || !el) return;
-    let r: ShaderRenderer;
-    try {
-      r = new ShaderRenderer(el, { maxDpr: 1.5 });
-    } catch {
-      return; // no WebGL2: the still picture stays
-    }
-    if (r.setCode(code).length) {
-      r.dispose();
-      return;
-    }
-    setRunning(true);
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    r.startLoop();
-    if (reduce) r.pause();
-    // Animate only while it is on screen, so a long page doesn't keep the graphics card busy.
-    const io = new IntersectionObserver(([e]) => {
-      if (reduce) return;
-      if (e.isIntersecting) r.resume();
-      else r.pause();
-    });
-    io.observe(el);
-    return () => {
-      io.disconnect();
-      r.dispose();
-    };
-  }, [code]);
-  return (
-    <div className="live-shader" style={still ? { backgroundImage: `url(${still})` } : undefined}>
-      <canvas ref={canvas} role="img" aria-label={label} style={{ opacity: running ? 1 : 0 }} />
-    </div>
-  );
-}
 
 /** GLSL with a little colour, for the static code illustration. */
 function Code({ src, cursors }: { src: string; cursors: Record<number, [string, string]> }) {

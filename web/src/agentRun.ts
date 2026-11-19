@@ -16,6 +16,7 @@ export interface RunSummary {
   seconds: number;
   thumb: string; // file name next to the run, e.g. "lava-lamp.jpg"
   finalFrames: string[]; // the last judged pass's frames, for the mini reel on the list
+  galleryId?: string; // the editable copy of its shader in the gallery, if there is one
 }
 
 /** One judged pass on the reel: the shader that was judged, rendered at a few moments. */

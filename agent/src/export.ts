@@ -2,6 +2,7 @@
 // into web/public/agent-runs/, and adds it to the list there. Commit those files to share the run.
 //
 //   npm run export-run -- out/2026-11-19T02-30-37 --id lava-lamp --title "Lava lamp"
+//   add --gallery <shader id> to link the replay to an editable copy in the gallery
 //   npm run export-run -- bench/runs/<run>/t11-lava-lamp/full --id lava-lamp-bench --title "Lava lamp (benchmark)"
 //
 // Older traces don't record the request or the models; pass them with --request, --writer, --judge.
@@ -36,6 +37,7 @@ async function main() {
   const requestFlag = take('--request');
   const writer = take('--writer');
   const judge = take('--judge');
+  const gallery = take('--gallery'); // id of the shader's copy in the gallery, linked from the replay
   const src = argv[0];
   if (!src || !id || !title) throw new Error('usage: export-run <run folder or trace.json> --id <slug> --title "<title>"');
   if (!/^[a-z0-9-]+$/.test(id)) throw new Error('--id must be lowercase letters, digits and dashes');
@@ -87,12 +89,14 @@ async function main() {
     thumb: `${id}.jpg`,
     finalFrames: reel.at(-1)?.frames.map((f) => f.src) ?? [],
   };
+  const indexPath = path.join(OUT, 'index.json');
+  const index: RunSummary[] = existsSync(indexPath) ? JSON.parse(await readFile(indexPath, 'utf8')) : [];
+  const galleryId = gallery ?? index.find((r) => r.id === id)?.galleryId; // keep a link made earlier
+  if (galleryId) summary.galleryId = galleryId;
   const run: Run = { ...summary, passScore: PASS, steps: trace.steps.map(toRunStep), reel };
 
   await writeFile(path.join(OUT, `${id}.json`), JSON.stringify(run));
   await writeFile(path.join(OUT, `${id}.jpg`), Buffer.from(picture, 'base64'));
-  const indexPath = path.join(OUT, 'index.json');
-  const index: RunSummary[] = existsSync(indexPath) ? JSON.parse(await readFile(indexPath, 'utf8')) : [];
   const next = [summary, ...index.filter((r) => r.id !== id)].sort((a, b) => b.date.localeCompare(a.date));
   await writeFile(indexPath, JSON.stringify(next, null, 2) + '\n');
   console.log(`Published "${title}" (${scores.join(' → ')}, $${summary.costUsd}) to web/public/agent-runs/${id}.json`);

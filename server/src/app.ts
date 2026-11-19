@@ -43,6 +43,9 @@ function decodeCursor(raw: string): PageKey | null {
   }
 }
 
+/** Longest starter code accepted when creating a shader. */
+const STARTER_MAX = 20_000;
+
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 /** Compares secrets in constant time, so the time taken doesn't reveal how much of a guess matched. */
 function sameSecret(a: string, b: string): boolean {
@@ -103,9 +106,15 @@ export async function buildApp(opts: AppOptions) {
     return registry.metrics();
   });
 
-  app.post('/api/shaders', async (_req, reply) => {
+  // A new shader starts from the default code, or from starter code the client sends (the
+  // templates on /new): { "code": "..." }, at most STARTER_MAX characters.
+  app.post<{ Body: { code?: unknown } | undefined }>('/api/shaders', async (req, reply) => {
+    const code = req.body?.code;
+    if (code !== undefined && (typeof code !== 'string' || code.length > STARTER_MAX)) {
+      return reply.code(400).send({ error: `code must be a string of at most ${STARTER_MAX} characters` });
+    }
     const id = newShaderId();
-    await opts.store.create(id, initialState());
+    await opts.store.create(id, initialState(code));
     reply.code(201);
     return { id };
   });
@@ -190,6 +199,14 @@ export async function buildApp(opts: AppOptions) {
     const meta = await opts.store.setPublished(id, false);
     await rooms.setLocked(id, false);
     return meta;
+  });
+
+  // The current code and title, read-only (anyone with the link can read it anyway). The gallery uses
+  // it to run a shader live when a card is hovered.
+  app.get<{ Params: { id: string } }>('/api/shaders/:id/code', async (req, reply) => {
+    if (!ID_RE.test(req.params.id)) return reply.code(400).send({ error: 'bad id' });
+    const source = await readSource(rooms, opts.store, req.params.id);
+    return source ?? reply.code(404).send({ error: 'not found' });
   });
 
   app.get<{ Params: { id: string } }>('/api/shaders/:id', async (req, reply) => {

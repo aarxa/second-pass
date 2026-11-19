@@ -25,3 +25,5 @@ export function getIdentity(): Identity {
   }
   return id;
 }
+
+export const initials = (name: string) => name.split(' ').slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase();

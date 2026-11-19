@@ -10,14 +10,16 @@ import { cpp } from '@codemirror/lang-cpp';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 
 import { ShaderRenderer, type CompileError } from './renderer';
-import { getIdentity } from './identity';
+import { getIdentity, initials } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
 import { TopBar, editorTheme } from './theme';
 import { collabUrl } from './server';
 import { forgetOwnerKey, removalKey, saveOwnerKey } from './keys';
+import { Reference } from './Reference';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
+  clientId: number;
   name: string;
   color: string;
   status?: string; // set by the shader agent: what it is doing right now
@@ -30,6 +32,28 @@ const lockable = new Compartment();
 const lockExtensions = (locked: boolean) => [EditorState.readOnly.of(locked), EditorView.editable.of(!locked)];
 const SPLIT_MIN = 20;
 const SPLIT_MAX = 80;
+
+// Someone's name shows on their cursor for a few seconds after they type or move it. The cursor
+// labels belong to y-codemirror.next and carry only the person's colour, so a small style sheet
+// reveals the labels of recently active colours.
+const activeColors = new Map<string, number>();
+let labelSheet: HTMLStyleElement | null = null;
+let labelTimer = 0;
+function showName(color: string) {
+  activeColors.set(color, Date.now());
+  renderLabels();
+}
+function renderLabels() {
+  labelSheet ??= document.head.appendChild(document.createElement('style'));
+  const now = Date.now();
+  for (const [c, t] of activeColors) if (now - t > 2500) activeColors.delete(c);
+  labelSheet.textContent = [...activeColors.keys()]
+    .filter((c) => /^#[0-9a-f]{3,8}$/i.test(c))
+    .map((c) => `.cm-ySelectionCaret[style*="${c}"] > .cm-ySelectionInfo { opacity: 1; }`)
+    .join('\n');
+  window.clearTimeout(labelTimer);
+  if (activeColors.size) labelTimer = window.setTimeout(renderLabels, 600);
+}
 
 export function Editor() {
   const { id = '' } = useParams();
@@ -50,6 +74,9 @@ export function Editor() {
   const clockEl = useRef<HTMLSpanElement>(null);
   const rendererRef = useRef<ShaderRenderer | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const providerRef = useRef<WebsocketProvider | null>(null);
+  const [me] = useState(() => getIdentity());
+  const [toasts, setToasts] = useState<{ key: number; text: string; color: string }[]>([]);
   const lockedRef = useRef(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
@@ -65,6 +92,8 @@ export function Editor() {
     }
   });
   const [status, setStatus] = useState<Status>('connecting');
+  const [synced, setSynced] = useState(false); // the code has arrived from the server at least once
+  const everConnected = useRef(false);
   const [errors, setErrors] = useState<CompileError[]>([]);
   const [peers, setPeers] = useState<Peer[]>([]);
   const [notFound, setNotFound] = useState(false);
@@ -74,21 +103,41 @@ export function Editor() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/shaders/${id}`).then(async (r) => {
-      if (cancelled) return;
-      if (r.status !== 200) return setNotFound(true);
-      const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null; publishedAt: string | null };
-      setForkedFrom(meta.forkedFrom);
-      setInGallery(meta.publishedAt !== null);
-      if (meta.thumbnailAt === null) {
-        thumbnailMissing.current = true;
-        backfillThumbnail.current?.();
-      }
-    });
+    let retry = 0;
+    // Only a 404 means "no such shader". Anything else (the free server still waking, a network
+    // blip) is retried, so a slow start never shows "Shader not found".
+    const load = () =>
+      fetch(`/api/shaders/${id}`)
+        .then(async (r) => {
+          if (cancelled) return;
+          if (r.status === 404 || r.status === 400) return setNotFound(true);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null; publishedAt: string | null };
+          setForkedFrom(meta.forkedFrom);
+          setInGallery(meta.publishedAt !== null);
+          if (meta.thumbnailAt === null) {
+            thumbnailMissing.current = true;
+            backfillThumbnail.current?.();
+          }
+        })
+        .catch(() => {
+          if (!cancelled) retry = window.setTimeout(load, 3000);
+        });
+    void load();
     return () => {
       cancelled = true;
+      window.clearTimeout(retry);
     };
   }, [id]);
+
+  // "Connecting…" for more than a few seconds almost always means the free server is waking up.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (status === 'connected') { setSlow(false); return; }
+    const t = window.setTimeout(() => setSlow(true), 3000);
+    return () => window.clearTimeout(t);
+  }, [status]);
+  const [refOpen, setRefOpen] = useState(false);
 
   useEffect(() => {
     if (!editorEl.current || !canvasEl.current || notFound) return;
@@ -110,19 +159,54 @@ export function Editor() {
     meta.observe(syncLock);
     const provider = new WebsocketProvider(collabUrl(), id, doc);
     sendOnlyLocalAwareness(provider); // don't echo other people's cursors back to the server
-    const me = getIdentity();
-    provider.awareness.setLocalStateField('user', { name: me.name, color: me.color, colorLight: me.color + '33' });
+    providerRef.current = provider;
+    const self = getIdentity();
+    provider.awareness.setLocalStateField('user', { name: self.name, color: self.color, colorLight: self.color + '33' });
 
     if (import.meta.env.DEV) (window as unknown as { __secondPass: unknown }).__secondPass = { doc, provider };
-    provider.on('status', (e: { status: Status }) => setStatus(e.status));
+    provider.on('status', (e: { status: Status }) => {
+      if (e.status === 'connected') everConnected.current = true;
+      setStatus(e.status);
+    });
+    setSynced(false);
     const updatePeers = () => {
       const list: Peer[] = [];
       provider.awareness.getStates().forEach((s, clientId) => {
-        if (clientId !== doc.clientID && s.user) list.push(s.user as Peer);
+        if (clientId !== doc.clientID && s.user) list.push({ clientId, ...(s.user as Omit<Peer, 'clientId'>) });
       });
       setPeers(list);
     };
     provider.awareness.on('change', updatePeers);
+
+    // Who joined, who left, who is typing. Names of people present when you arrive aren't announced:
+    // only changes after the first couple of seconds are.
+    const known = new Map<number, { name: string; color: string; cursor: string }>();
+    let settled = false;
+    const settleTimer = window.setTimeout(() => { settled = true; }, 2500);
+    const toast = (text: string, color: string) => {
+      const key = Date.now() + Math.random();
+      setToasts((t) => [...t.slice(-3), { key, text, color }]);
+      window.setTimeout(() => setToasts((t) => t.filter((x) => x.key !== key)), 3500);
+    };
+    const onPresence = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+      for (const id of [...added, ...updated]) {
+        if (id === doc.clientID) continue;
+        const s = provider.awareness.getStates().get(id) as { user?: { name: string; color: string }; cursor?: unknown } | undefined;
+        if (!s?.user) continue;
+        const cursor = JSON.stringify(s.cursor ?? null);
+        const before = known.get(id);
+        if (!before) { if (settled) toast(`${s.user.name} joined`, s.user.color); }
+        else if (before.name !== s.user.name && settled) toast(`${before.name} is now ${s.user.name}`, s.user.color);
+        else if (before.cursor !== cursor) showName(s.user.color);
+        known.set(id, { name: s.user.name, color: s.user.color, cursor });
+      }
+      for (const id of removed) {
+        const before = known.get(id);
+        known.delete(id);
+        if (before && settled) toast(`${before.name} left`, before.color);
+      }
+    };
+    provider.awareness.on('change', onPresence);
 
     // The server is billed for as long as any connection is open, so a tab left in the background
     // lets go of its connection after a few minutes, and reconnects (catching up on edits) when it
@@ -207,6 +291,7 @@ export function Editor() {
     });
     viewRef.current = view;
     provider.once('sync', () => {
+      setSynced(true);
       recompile();
       syncTitle();
       syncLock();
@@ -217,6 +302,9 @@ export function Editor() {
       window.clearTimeout(captureTimer);
       window.clearTimeout(idleTimer);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.clearTimeout(settleTimer);
+      provider.awareness.off('change', onPresence);
+      providerRef.current = null;
       backfillThumbnail.current = null;
       ytext.unobserve(markEdit);
       ytext.unobserve(recompile);
@@ -291,6 +379,30 @@ export function Editor() {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
     saveSplit(moveSplit(split + (e.key === 'ArrowLeft' ? -5 : 5)));
+  };
+
+  // Reference "Insert": puts a snippet on its own line below the cursor (or on the cursor's line if it
+  // is empty), indented like that line, and puts the cursor after it. If the cursor was never placed
+  // (it sits at the very start), the snippet goes at the end of mainImage, where it will compile.
+  const insertSnippet = (code: string) => {
+    const view = viewRef.current;
+    if (!view || lockedRef.current) return;
+    const doc = view.state.doc;
+    let head = view.state.selection.main.head;
+    if (head === 0) {
+      const text = doc.toString();
+      const main = text.indexOf('void mainImage');
+      const close = main >= 0 ? text.lastIndexOf('\n}') : -1;
+      if (close > main && main >= 0) head = doc.lineAt(close).from; // the line before mainImage's closing brace
+    }
+    const line = doc.lineAt(head);
+    const indent = /^\s*/.exec(line.text)?.[0] || (head === 0 ? '' : '    ');
+    const text = code.split('\n').map((l) => indent + l).join('\n');
+    const blank = line.text.trim() === '';
+    const from = blank ? line.from : line.to;
+    const insert = blank ? text : '\n' + text;
+    view.dispatch({ changes: { from, to: blank ? line.to : line.to, insert }, selection: { anchor: from + insert.length }, scrollIntoView: true });
+    view.focus();
   };
 
   const share = async () => {
@@ -382,10 +494,16 @@ export function Editor() {
         {inGallery !== null && <span className={`state-tag${inGallery ? ' gal' : ''}`}>{inGallery ? '✓ In gallery' : 'Draft'}</span>}
         <span className={`live ${status}`}>{status === 'connected' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Offline'}</span>
         <div className="peers">
-          {peers.map((p, i) => (
-            <span key={i} className="peer-wrap">
+          {/* You: your own circle, marked by a soft pulse. Everyone is anonymous (a random animal name). */}
+          <span className="peer-wrap">
+            <span className="peer you" style={{ background: me.color, '--me': me.color } as React.CSSProperties} title={`You (${me.name})`}>
+              {initials(me.name)}
+            </span>
+          </span>
+          {peers.map((p) => (
+            <span key={p.clientId} className="peer-wrap">
               <span className="peer" style={{ background: p.color }} title={p.status ? `${p.name}: ${p.status}` : p.name}>
-                {p.name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+                {initials(p.name)}
               </span>
               {/* Only bots set a status (the shader agent shows what it is doing); people don't. */}
               {p.status && <span className="peer-status" style={{ borderColor: p.color }}>{p.status}</span>}
@@ -424,16 +542,31 @@ export function Editor() {
         </div>
       )}
       {!inGallery && galleryError && <div className="lock-banner"><span className="lock-error">{galleryError}</span></div>}
-      <main className="split" ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
+      {slow && status !== 'connected' && (
+        <div className="lock-banner waking-banner" role="status">
+          <i className="spinner" aria-hidden="true" />
+          <span>
+            {everConnected.current ? (
+              <><b>Reconnecting…</b> The connection to the server dropped. Your edits are kept and sync as soon as it's back.</>
+            ) : (
+              <><b>Waking the server…</b> The free server sleeps when nobody has used it for a while. Waking it takes up to a minute; the code appears as soon as it's up.</>
+            )}
+          </span>
+        </div>
+      )}
+      <main className={refOpen ? 'split with-ref' : 'split'} ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
         <div className="code-pane">
           <div className="editor" ref={editorEl} />
           <div className="codebar">
-            {errors.length > 0
-              ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
-              : <span className="good">✓ Compiled</span>}
+            {!synced
+              ? <span>Loading code…</span>
+              : errors.length > 0
+                ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
+                : <span className="good">✓ Compiled</span>}
             {inGallery && <span>Read-only</span>}
             <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
             {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>}
+            <button className="ref-toggle" onClick={() => setRefOpen((o) => !o)} aria-expanded={refOpen}>{refOpen ? 'Close reference' : 'Reference'}</button>
           </div>
         </div>
         <div
@@ -450,6 +583,9 @@ export function Editor() {
           onDoubleClick={() => saveSplit(moveSplit(50))}
           title="Drag to resize; double-click to reset"
         ><i /></div>
+        <div className="toasts" aria-live="polite">
+          {toasts.map((t) => <div key={t.key} className="toast"><i style={{ background: t.color }} />{t.text}</div>)}
+        </div>
         <div className="preview" ref={previewEl}>
           <canvas ref={canvasEl} data-testid="preview" />
           <div className="stage-ctl">
@@ -461,7 +597,9 @@ export function Editor() {
             <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
           )}
         </div>
+        {refOpen && <Reference onClose={() => setRefOpen(false)} onInsert={inGallery ? undefined : insertSnippet} />}
       </main>
     </div>
   );
 }
+

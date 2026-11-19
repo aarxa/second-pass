@@ -133,6 +133,26 @@ describe('M2: forking', () => {
   });
 });
 
+describe('starting code', () => {
+  it('starts from code sent with the request, and serves the code read-only', async () => {
+    const code = 'void mainImage(out vec4 c, in vec2 p) { c = vec4(1.0); }\n';
+    const res = await api('/api/shaders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    const read = (await (await api(`/api/shaders/${id}/code`)).json()) as { code: string; title: string };
+    expect(read.code).toBe(code);
+    expect(read.title).toBe('Untitled');
+    expect((await api('/api/shaders/zzzzzzzzzz/code')).status).toBe(404);
+  });
+
+  it('rejects starter code that is not a short string', async () => {
+    const post = (body: unknown) => api('/api/shaders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await post({ code: 42 })).status).toBe(400);
+    expect((await post({ code: 'x'.repeat(20_001) })).status).toBe(400);
+    expect((await api('/api/shaders', { method: 'POST' })).status).toBe(201); // no body: the default code
+  });
+});
+
 describe('M2: gallery', () => {
   async function page(qs: string): Promise<Page> {
     const res = await api(`/api/shaders${qs}`);
