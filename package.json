@@ -1,5 +1,5 @@
 {
-  "name": "shaderlab",
+  "name": "second-pass",
   "private": true,
   "workspaces": [
     "server",

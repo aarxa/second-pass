@@ -1,5 +1,5 @@
 {
-  "name": "@shaderlab/server",
+  "name": "@second-pass/server",
   "private": true,
   "type": "module",
   "scripts": {

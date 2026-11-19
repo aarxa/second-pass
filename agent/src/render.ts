@@ -1,5 +1,5 @@
 // The agent's eyes: compile and render a shader in a real headless browser, with the same WebGL2
-// wrapper the editor uses (web/src/glsl.ts), so "it compiles here" means "it compiles in shaderlab".
+// wrapper the editor uses (web/src/glsl.ts), so "it compiles here" means "it compiles in Second Pass".
 //
 // One browser stays open for the whole run; each shader gets a fresh page, so a shader that hangs
 // the GPU (an endless loop) can be thrown away without restarting the browser.

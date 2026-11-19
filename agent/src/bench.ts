@@ -165,7 +165,7 @@ function ratePage(results: Result[], cases: Case[]): string {
 <p><span id="n"></span> <button id="dl">Download ratings.json</button></p><div id="list"></div>
 <script>
 const items=${JSON.stringify(items)};const times=${JSON.stringify(DEFAULT_TIMES)};
-const key='shaderlab-ratings-'+location.pathname;let r={};try{r=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
+const key='secondpass-ratings-'+location.pathname;let r={};try{r=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
 let seed=42;const rnd=()=>{seed=(seed+0x6d2b79f5)|0;let t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296};
 for(let i=items.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[items[i],items[j]]=[items[j],items[i]]}
 const list=document.getElementById('list');

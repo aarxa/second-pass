@@ -1,5 +1,5 @@
 {
-  "name": "@shaderlab/agent",
+  "name": "@second-pass/agent",
   "private": true,
   "type": "module",
   "scripts": {

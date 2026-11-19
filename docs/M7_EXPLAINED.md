@@ -30,7 +30,7 @@ Prior work this builds on, and what is different:
 | `agent/src/model.ts` | The two model calls, writer and judge, behind a small `Model` interface. |
 | `agent/src/prompts.ts` | Every prompt, with a version number recorded in each benchmark run. |
 | `agent/src/agent.ts` | The loop, its three modes, limits, and the step log (trace). |
-| `agent/src/room.ts` | Joins a live shaderlab room as a collaborator and types each draft in. |
+| `agent/src/room.ts` | Joins a live room as a collaborator and types each draft in. |
 | `agent/src/bench.ts` | The benchmark, the blind rating page, and the judge-vs-human agreement maths. |
 | `agent/src/fake.ts` | A free fake model for dry runs and tests. |
 
@@ -42,7 +42,7 @@ and the benchmark can switch steps off to measure what each one is worth (the mo
 model still makes all the creative decisions; it just doesn't decide the control flow.
 
 **Rendering in a real browser, with SwiftShader.** The agent compiles with the exact wrapper the
-editor uses, in Chrome's WebGL2, so "it compiles in the agent" means "it compiles in shaderlab".
+editor uses, in Chrome's WebGL2, so "it compiles in the agent" means "it compiles in Second Pass".
 SwiftShader renders on the CPU: slower, but the same pixels on any machine (fair benchmark), and a
 broken shader can't hang a GPU driver. Each shader gets a fresh page with a timeout, so an endless
 loop costs one page, not the whole run.
