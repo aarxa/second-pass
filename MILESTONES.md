@@ -57,6 +57,11 @@ prepares you for. Write the code yourself and get each PR reviewed before mergin
 - The agent joins a live room as a collaborator and types each draft in (`--room`); hand edits made
   while it works are passed back to it.
 - A replay page (`/agent`) that plays saved runs back for free; `npm run export-run` publishes one.
+  Listed runs (2026-11-19, Opus 5.5 writing and judging): black hole, synthwave sunset, jellyfish,
+  lotus, lava lamp. Kept for the write-up, not listed: the lava lamp written by Haiku (a cost
+  experiment, $0.05 vs $0.30; still at `/agent/lava-lamp-haiku`). Not published: "fireworks over a
+  city skyline" passed at exactly 7 although the judge called the bursts dim and small, a sign the
+  pass mark may be too lenient for "fine but flat" results (trace in agent/out/2026-11-19T11-26-59).
 - Done when: a full benchmark table in the README, about 20 sketch cases, agreement measured on about
   100 of your ratings, and a short video of the agent in a live room.
 - Interview prep: workflow vs. agent, evaluating generative output, ablations, LLM-as-judge bias,
