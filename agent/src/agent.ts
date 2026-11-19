@@ -54,6 +54,10 @@ export interface Deps {
   model: Model;
   renderer: Renderer;
   onStep?: (s: Step) => void; // for live output (CLI, or a shaderlab room)
+  /** Called with every draft before it is compiled; awaited, so a live room can type it in first. */
+  onDraft?: (code: string, round: number) => Promise<void>;
+  /** Returns the code if a person edited it since the last draft (live rooms), otherwise null. */
+  peekEdits?: () => string | null;
 }
 
 export function describeStats(s: FrameStats): string {
@@ -78,6 +82,17 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
   const log = (s: Step) => { steps.push(s); deps.onStep?.(s); };
   const spend = (u: Usage) => { total.inputTokens += u.inputTokens; total.outputTokens += u.outputTokens; total.costUsd += u.costUsd; };
 
+  // Every piece of feedback goes through here, so hand edits made in a live room are never lost:
+  // the writer gets the person's version and is told to build on it.
+  const feedback = (turn: Extract<WriterTurn, { role: 'feedback' }>) => {
+    const edited = deps.peekEdits?.();
+    if (edited) {
+      turn = { ...turn, text: `${turn.text}\n\nSomeone in the room edited the shader by hand since your last version. ` +
+        `Their version is below. Build on it and keep their changes unless they break the request.\n${edited}` };
+    }
+    history.push(turn);
+  };
+
   let best: { code: string; score: number } | null = null;
   let lastCompiled: string | null = null;
   let compileFixes = 0;
@@ -99,17 +114,19 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
       spend(usage);
       history.push({ role: 'draft', draft });
       log({ type: 'draft', round, plan: draft.plan, code: draft.code, usage });
+      await deps.onDraft?.(draft.code, round);
 
       let errors = await deps.renderer.compile(draft.code);
       log({ type: 'compile', round, ok: errors.length === 0, errors: errors.map((e) => `line ${e.line}: ${e.message}`) });
       for (let fix = 0; errors.length && fix < maxCompileFixes; fix++) {
         if (total.costUsd >= budget) return finish('over_budget');
-        history.push({ role: 'feedback', text: compilerFeedback(draft.code, errors) });
+        feedback({ role: 'feedback', text: compilerFeedback(draft.code, errors) });
         ({ draft, usage } = await deps.model.write(history));
         spend(usage);
         compileFixes++;
         history.push({ role: 'draft', draft });
         log({ type: 'draft', round, plan: draft.plan, code: draft.code, usage });
+        await deps.onDraft?.(draft.code, round);
         errors = await deps.renderer.compile(draft.code);
         log({ type: 'compile', round, ok: errors.length === 0, errors: errors.map((e) => `line ${e.line}: ${e.message}`) });
       }
@@ -122,7 +139,7 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
       const shot = await deps.renderer.render(draft.code);
       if (!shot.ok) {
         // Compiled but failed to draw (usually a hang). Treat it like a compile error next round.
-        history.push({ role: 'feedback', text: `It compiled but did not render: ${shot.errors.map((e) => e.message).join('; ')}. Make it cheaper.` });
+        feedback({ role: 'feedback', text: `It compiled but did not render: ${shot.errors.map((e) => e.message).join('; ')}. Make it cheaper.` });
         continue;
       }
       log({ type: 'render', round, stats: shot.stats, ms: shot.ms });
@@ -138,7 +155,7 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
 
       // 3. Not there yet: show the writer what it made and what to change.
       if (round < maxRounds) {
-        history.push({
+        feedback({
           role: 'feedback',
           frames: frames.map((f) => f.image),
           text: `These are frames of your shader at iTime ${frames.map((f) => f.t).join(', ')}s. ` +

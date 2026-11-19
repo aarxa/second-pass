@@ -19,6 +19,8 @@ header { display: flex; align-items: center; gap: 12px; padding: 8px 16px; backg
 .status.connected { background: #12391f; color: #5ee08a; }
 .status.disconnected { background: #3d1515; color: var(--error); }
 .peers { display: flex; gap: 4px; margin-left: auto; }
+.peer-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.peer-status { font-size: 11px; padding: 3px 8px; border: 1px solid; border-radius: 999px; color: var(--muted); white-space: nowrap; }
 .peer { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #111; }
 button:disabled { opacity: 0.6; cursor: default; }
 button.secondary { background: #2a2f3a; }

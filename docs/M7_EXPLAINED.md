@@ -30,6 +30,7 @@ Prior work this builds on, and what is different:
 | `agent/src/model.ts` | The two model calls, writer and judge, behind a small `Model` interface. |
 | `agent/src/prompts.ts` | Every prompt, with a version number recorded in each benchmark run. |
 | `agent/src/agent.ts` | The loop, its three modes, limits, and the step log (trace). |
+| `agent/src/room.ts` | Joins a live shaderlab room as a collaborator and types each draft in. |
 | `agent/src/bench.ts` | The benchmark, the blind rating page, and the judge-vs-human agreement maths. |
 | `agent/src/fake.ts` | A free fake model for dry runs and tests. |
 
@@ -70,6 +71,23 @@ benchmark run halfway through.
 **Models.** The writer and judge default to Claude Opus 5.5 (`AGENT_WRITER_MODEL` and
 `AGENT_JUDGE_MODEL` change them). Requests are streamed (long shaders never hit an HTTP timeout) and
 use server-side fallbacks, so a rare safety decline is retried on another model instead of failing.
+
+## The agent in a live room
+
+`npm run agent -- --room https://shaderlab.onrender.com/s/<id> "a lava lamp"` makes the agent join
+that room as a collaborator: a y-websocket client like any browser, with its own name, colour and
+cursor. Everyone in the room watches it type, and every browser's live preview recompiles as it goes.
+The header shows what it is doing ("round 2: judging") next to its avatar.
+
+- **It types a line diff.** On a revision only the changed lines are deleted and retyped (a longest
+  common subsequence diff over lines), so viewers can see exactly what each critique made it fix.
+- **People can edit while it works.** Before every piece of feedback the agent checks whether the
+  room's code still matches what it last typed. If someone changed it, the writer gets their version
+  and is told to build on it rather than revert it. That is the CRDT doing its job: the agent's edits
+  and the person's edits merge without locks.
+- **It runs on your machine, not the server.** A public "run the agent" button would spend your API
+  money for anyone who clicks it, and headless Chrome doesn't fit in a 512 MB free instance. The
+  agent connects to the room from wherever it runs, which needs no server changes at all.
 
 ## The benchmark
 
@@ -131,8 +149,7 @@ table you want to keep into the README.
 1. Run the benchmark for real on all 30 cases and add the table to the README.
 2. Draw about 20 sketches and run them.
 3. Rate about 100 results and report the agreement numbers.
-4. Live demo: the agent joins a shaderlab room as a collaborator with its own cursor and types the
-   shader into the shared document (server endpoint + a Yjs client).
+4. Record a short video of the agent working in a live room (done: `--room`).
 
 ## Interview questions this prepares you for
 

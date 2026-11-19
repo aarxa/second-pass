@@ -53,7 +53,9 @@ prepares you for. Write the code yourself and get each PR reviewed before mergin
 - A benchmark of 30 text cases (plus your sketches) in three modes (one shot, compile fixing, full
   visual loop), each final shader scored the same way.
 - A blind rating page and judge-vs-human agreement (Spearman, Cohen's kappa).
+- The agent joins a live room as a collaborator and types each draft in (`--room`); hand edits made
+  while it works are passed back to it.
 - Done when: a full benchmark table in the README, about 20 sketch cases, agreement measured on about
-  100 of your ratings, and the agent typing into a live room.
+  100 of your ratings, and a short video of the agent in a live room.
 - Interview prep: workflow vs. agent, evaluating generative output, ablations, LLM-as-judge bias,
   cost control in loops, sandboxing generated code.

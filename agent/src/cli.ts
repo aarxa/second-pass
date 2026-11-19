@@ -3,6 +3,8 @@
 //   npm run agent -- "a lava lamp with slow rising blobs"
 //   npm run agent -- --sketch my-drawing.png "make the sun pulse"
 //   npm run agent -- --mode compile --dry "anything"     (fake model, no API key, no cost)
+//   npm run agent -- --room https://shaderlab.onrender.com/s/<id> "a lava lamp"
+//       joins that room and types each draft in live; edits people make are picked up
 //
 // The final shader and its frames are saved to agent/out/<time>/.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -11,6 +13,7 @@ import { Renderer } from './render.ts';
 import { runAgent, type Mode, type Step } from './agent.ts';
 import { ClaudeModel, type Model } from './model.ts';
 import { fakeModel } from './fake.ts';
+import { LiveRoom } from './room.ts';
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -18,6 +21,7 @@ async function main() {
   const dry = argv.includes('--dry'); if (dry) argv.splice(argv.indexOf('--dry'), 1);
   const mode = (take('--mode') ?? 'full') as Mode;
   const sketchPath = take('--sketch');
+  const roomUrl = take('--room');
   const prompt = argv.join(' ').trim() || undefined;
   if (!prompt && !sketchPath) throw new Error('give a request, a --sketch, or both');
 
@@ -26,8 +30,17 @@ async function main() {
     : undefined;
   const model: Model = dry ? fakeModel() : new ClaudeModel();
   const renderer = await Renderer.open();
+  const room = roomUrl ? await LiveRoom.join(roomUrl) : null;
+  if (room) console.log(`Joined ${roomUrl}`);
   try {
-    const trace = await runAgent({ id: 'cli', prompt, sketch }, { mode }, { model, renderer, onStep: print });
+    const trace = await runAgent({ id: 'cli', prompt, sketch }, { mode }, {
+      model, renderer,
+      onStep: (s) => { print(s); if (room) room.status(statusFor(s)); },
+      onDraft: room ? (code) => room.type(code) : undefined,
+      peekEdits: room ? () => room.peekEdits() : undefined,
+    });
+    // In a room, leave the best version on screen (a later, worse draft may be showing).
+    if (room && trace.code && room.code !== trace.code) await room.type(trace.code);
     const out = path.join('out', new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19));
     await mkdir(out, { recursive: true });
     await writeFile(path.join(out, 'trace.json'), JSON.stringify(trace, null, 2));
@@ -39,7 +52,18 @@ async function main() {
     console.log(`\n${trace.stop}${trace.error ? ` (${trace.error})` : ''} after ${trace.rounds} round(s), ` +
       `${trace.compileFixes} compile fix(es), $${trace.usage.costUsd.toFixed(3)}, ${(trace.ms / 1000).toFixed(1)} s. Saved to agent/${out}/`);
   } finally {
+    await room?.leave();
     await renderer.close();
+  }
+}
+
+function statusFor(s: Step): string {
+  switch (s.type) {
+    case 'draft': return `round ${s.round}: compiling`;
+    case 'compile': return s.ok ? `round ${s.round}: rendering` : `round ${s.round}: fixing errors`;
+    case 'render': return `round ${s.round}: judging`;
+    case 'judge': return `round ${s.round}: scored ${s.verdict.score}/10`;
+    case 'stop': return s.reason.replace('_', ' ');
   }
 }
 

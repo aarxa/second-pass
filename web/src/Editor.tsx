@@ -18,6 +18,7 @@ type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
   name: string;
   color: string;
+  status?: string; // set by the shader agent: what it is doing right now
 }
 
 export const TITLE_MAX = 80;
@@ -205,8 +206,12 @@ export function Editor() {
         <span className={`status ${status}`}>{status}</span>
         <div className="peers">
           {peers.map((p, i) => (
-            <span key={i} className="peer" style={{ background: p.color }} title={p.name}>
-              {p.name.split(' ').map((w) => w[0]).join('')}
+            <span key={i} className="peer-wrap">
+              <span className="peer" style={{ background: p.color }} title={p.status ? `${p.name}: ${p.status}` : p.name}>
+                {p.name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+              </span>
+              {/* Only bots set a status (the shader agent shows what it is doing); people don't. */}
+              {p.status && <span className="peer-status" style={{ borderColor: p.color }}>{p.status}</span>}
             </span>
           ))}
         </div>
