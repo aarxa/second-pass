@@ -5,7 +5,7 @@ import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import { yCollab } from 'y-codemirror.next';
 import { EditorView, basicSetup } from 'codemirror';
-import { EditorState } from '@codemirror/state';
+import { Compartment, EditorState } from '@codemirror/state';
 import { cpp } from '@codemirror/lang-cpp';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 
@@ -14,6 +14,7 @@ import { getIdentity } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
 import { TopBar, editorTheme } from './theme';
 import { collabUrl } from './server';
+import { forgetOwnerKey, removalKey, saveOwnerKey } from './keys';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
@@ -24,6 +25,9 @@ interface Peer {
 
 export const TITLE_MAX = 80;
 const SPLIT_KEY = 'secondpass.split';
+// Switches the code editor between editable and read-only (a gallery piece is locked).
+const lockable = new Compartment();
+const lockExtensions = (locked: boolean) => [EditorState.readOnly.of(locked), EditorView.editable.of(!locked)];
 const SPLIT_MIN = 20;
 const SPLIT_MAX = 80;
 
@@ -45,6 +49,9 @@ export function Editor() {
   const splitEl = useRef<HTMLElement>(null);
   const clockEl = useRef<HTMLSpanElement>(null);
   const rendererRef = useRef<ShaderRenderer | null>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const lockedRef = useRef(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [copied, setCopied] = useState<'idle' | 'ok'>('idle');
@@ -94,6 +101,13 @@ export function Editor() {
     metaRef.current = meta;
     const syncTitle = () => setTitle(String(meta.get('title') ?? ''));
     meta.observe(syncTitle);
+    // The server writes "locked" into the document when the shader enters or leaves the gallery,
+    // so every open editor switches to read-only (or back) at once.
+    const syncLock = () => {
+      const v = meta.get('locked');
+      if (typeof v === 'boolean') setInGallery(v);
+    };
+    meta.observe(syncLock);
     const provider = new WebsocketProvider(collabUrl(), id, doc);
     sendOnlyLocalAwareness(provider); // don't echo other people's cursors back to the server
     const me = getIdentity();
@@ -188,12 +202,14 @@ export function Editor() {
       parent: editorEl.current,
       state: EditorState.create({
         doc: ytext.toString(),
-        extensions: [basicSetup, cpp(), editorTheme, yCollab(ytext, provider.awareness, { undoManager })],
+        extensions: [basicSetup, cpp(), editorTheme, yCollab(ytext, provider.awareness, { undoManager }), lockable.of(lockExtensions(lockedRef.current))],
       }),
     });
+    viewRef.current = view;
     provider.once('sync', () => {
       recompile();
       syncTitle();
+      syncLock();
     });
 
     return () => {
@@ -205,6 +221,8 @@ export function Editor() {
       ytext.unobserve(markEdit);
       ytext.unobserve(recompile);
       meta.unobserve(syncTitle);
+      meta.unobserve(syncLock);
+      viewRef.current = null;
       metaRef.current = null;
       view.destroy();
       rendererRef.current = null;
@@ -213,6 +231,11 @@ export function Editor() {
       doc.destroy();
     };
   }, [id, notFound]);
+
+  useEffect(() => {
+    lockedRef.current = inGallery === true;
+    viewRef.current?.dispatch({ effects: lockable.reconfigure(lockExtensions(lockedRef.current)) });
+  }, [inGallery]);
 
   // The clock under the picture: read from the renderer a few times a second, without re-rendering React.
   useEffect(() => {
@@ -298,17 +321,41 @@ export function Editor() {
     setNameFirst(true);
     titleEl.current?.focus();
   };
-  const toggleGallery = async () => {
-    if (!inGallery && !title.trim()) return askForName();
+  const addToGallery = async () => {
+    if (!title.trim()) return askForName();
     setGalleryBusy(true);
+    setGalleryError(null);
     try {
-      const res = await fetch(`/api/shaders/${id}/gallery`, { method: inGallery ? 'DELETE' : 'PUT' }).catch(() => null);
-      if (res?.ok) setInGallery(((await res.json()) as { publishedAt: string | null }).publishedAt !== null);
-      else if (res?.status === 422) askForName(); // e.g. the title is literally "Untitled"
+      const res = await fetch(`/api/shaders/${id}/gallery`, { method: 'PUT' }).catch(() => null);
+      if (res?.ok) {
+        const meta = (await res.json()) as { publishedAt: string | null; ownerKey?: string };
+        if (meta.ownerKey) saveOwnerKey(id, meta.ownerKey); // this browser can take it out again
+        setInGallery(meta.publishedAt !== null);
+      } else if (res?.status === 422) askForName(); // e.g. the title is literally "Untitled"
+      else setGalleryError("Couldn't add it to the gallery. Try again in a moment.");
     } finally {
       setGalleryBusy(false);
     }
   };
+  const removeFromGallery = async () => {
+    const key = removalKey(id);
+    setGalleryBusy(true);
+    setGalleryError(null);
+    try {
+      const res = await fetch(`/api/shaders/${id}/gallery`, {
+        method: 'DELETE',
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
+      }).catch(() => null);
+      if (res?.ok) {
+        forgetOwnerKey(id);
+        setInGallery(false);
+      } else if (res?.status === 403) setGalleryError('Only the browser that added it to the gallery (or the site owner) can take it out.');
+      else setGalleryError("Couldn't take it out of the gallery. Try again in a moment.");
+    } finally {
+      setGalleryBusy(false);
+    }
+  };
+  const canRemove = inGallery === true && removalKey(id) !== null;
 
   if (notFound) return <div className="center">Shader not found. <a href="/new">Make a new one</a></div>;
 
@@ -319,6 +366,7 @@ export function Editor() {
           <input
             ref={titleEl}
             className={nameFirst ? 'title need' : 'title'}
+            disabled={inGallery === true}
             aria-label="Shader title"
             placeholder={nameFirst ? 'Name it first' : 'Untitled'}
             maxLength={TITLE_MAX}
@@ -345,20 +393,37 @@ export function Editor() {
           ))}
         </div>
         <div className="actions">
-          <button
-            className="secondary"
-            onClick={toggleGallery}
-            disabled={inGallery === null || galleryBusy}
-            title={inGallery ? 'Take it out of the gallery. It stays at this link.' : 'Only people with the link see it until you add it.'}
-          >
-            {inGallery ? 'Remove from gallery' : 'Add to gallery'}
-          </button>
+          {inGallery === false && (
+            <button
+              className="secondary"
+              onClick={addToGallery}
+              disabled={galleryBusy}
+              title="Lists it in the gallery and locks it, so it can only be forked. This browser can take it out again."
+            >
+              Add to gallery
+            </button>
+          )}
           <button className="secondary" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
           <button onClick={share} title="Copy the link. Anyone with it can edit.">
             {copied === 'ok' ? 'Link copied ✓' : 'Share'}
           </button>
         </div>
       </TopBar>
+      {inGallery && (
+        <div className="lock-banner" role="status">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" /></svg>
+          {canRemove ? (
+            <span><b>In the gallery, so it's locked.</b> Nobody can edit it here, including you. Take it out of the gallery to change it, or fork it.</span>
+          ) : (
+            <span><b>A gallery piece.</b> Everyone sees the same version, so it can't be edited here. Fork it to make your own copy.</span>
+          )}
+          {galleryError && <span className="lock-error">{galleryError}</span>}
+          {canRemove
+            ? <button className="secondary" onClick={removeFromGallery} disabled={galleryBusy}>Remove from gallery</button>
+            : <button onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork to edit'}</button>}
+        </div>
+      )}
+      {!inGallery && galleryError && <div className="lock-banner"><span className="lock-error">{galleryError}</span></div>}
       <main className="split" ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
         <div className="code-pane">
           <div className="editor" ref={editorEl} />
@@ -366,6 +431,7 @@ export function Editor() {
             {errors.length > 0
               ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
               : <span className="good">✓ Compiled</span>}
+            {inGallery && <span>Read-only</span>}
             <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
             {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>}
           </div>

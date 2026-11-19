@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { Editor } from './Editor';
 import { Gallery } from './Gallery';
 import { Home } from './Home';
+import { Admin } from './Admin';
 import { Runs } from './Runs';
 import { Replay } from './Replay';
 import './styles.css';
@@ -48,6 +49,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/agent" element={<Runs />} />
         <Route path="/agent/:id" element={<Replay />} />
+        <Route path="/admin" element={<Admin />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

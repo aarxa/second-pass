@@ -58,6 +58,10 @@ Reproduce: `docker compose -f docker-compose.yml -f docker-compose.load.yml up -
   edits) into a new shader linked to its original; `/gallery` lists the shaders someone named and
   added (new ones are drafts, seen only by people with the link), most recently added first, with
   cursor pagination. Schema changes go through numbered migrations. Walkthrough: docs/M2_EXPLAINED.md.
+- **Locked gallery pieces**: adding a shader to the gallery locks it. The server drops edits to it (not
+  just the page), every open editor switches to read-only, and visitors fork it to change it. There are
+  no accounts: adding returns a random owner key that only that browser keeps (the server stores a
+  hash), and that key or the site owner's `ADMIN_TOKEN` (saved in the browser at `/admin`) takes it out.
 - **Thumbnails**: the editor of whoever is typing captures its live preview (320×180 WebP, JPEG on Safari)
   a few seconds after a successful compile and uploads it. The server checks the real format from the
   file's bytes, size and dimension limits, and a per-shader write rate, then serves versioned URLs that

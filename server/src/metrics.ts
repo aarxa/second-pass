@@ -57,3 +57,8 @@ export const connectionsRejected = new client.Counter({
   help: 'WebSocket connections refused because the server was at its connection limit (admission control)',
   registers: [registry],
 });
+export const lockedWritesDropped = new client.Counter({
+  name: 'shaderlab_locked_writes_dropped_total',
+  help: 'Edits dropped because the shader is in the gallery (locked)',
+  registers: [registry],
+});

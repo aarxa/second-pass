@@ -67,12 +67,17 @@ describe.skipIf(!url)('PgStore', () => {
         return seen.includes(id);
       };
       expect(await inGallery()).toBe(false);
-      const added = await store.setPublished(id, true);
+      expect(await store.ownerKeyHash(id)).toBeNull();
+      const added = await store.setPublished(id, true, 'hash-1');
+      expect(await store.ownerKeyHash(id)).toBe('hash-1');
       expect(added?.publishedAt).toBeInstanceOf(Date);
       expect(await inGallery()).toBe(true);
       // Adding again keeps the original time (its place in the gallery).
-      expect((await store.setPublished(id, true))?.publishedAt?.getTime()).toBe(added!.publishedAt!.getTime());
+      expect((await store.setPublished(id, true, 'hash-2'))?.publishedAt?.getTime()).toBe(added!.publishedAt!.getTime());
+      expect(await store.ownerKeyHash(id)).toBe('hash-1'); // adding again keeps the first key
       expect((await store.setPublished(id, false))?.publishedAt).toBeNull();
+      expect(await store.ownerKeyHash(id)).toBeNull();
+      expect(await store.ownerKeyHash(newShaderId())).toBeUndefined();
       expect(await inGallery()).toBe(false);
       expect(await store.setPublished(newShaderId(), true)).toBeNull();
     } finally {
