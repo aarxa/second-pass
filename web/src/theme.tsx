@@ -41,14 +41,17 @@ export function ThemeToggle() {
   );
 }
 
+export const GITHUB_URL = 'https://github.com/aarxa/second-pass';
+
 /** The top bar on every page. `children` go between the navigation and the theme toggle. */
-export function TopBar({ active, children }: { active?: 'runs' | 'gallery'; children?: ReactNode }) {
+export function TopBar({ active, children }: { active?: 'home' | 'runs' | 'gallery'; children?: ReactNode }) {
   return (
     <header className="top">
-      <Link to="/agent" className="mark" aria-label="Second Pass, home">Second<span>/</span>Pass</Link>
+      <Link to="/" className="mark" aria-label="Second Pass, home">Second<span>/</span>Pass</Link>
       <nav className="nav">
         <Link to="/agent" className={active === 'runs' ? 'on' : ''}>Runs</Link>
         <Link to="/gallery" className={active === 'gallery' ? 'on' : ''}>Gallery</Link>
+        {active === 'home' && <a href="#how">How it works</a>}
       </nav>
       {children}
       <ThemeToggle />

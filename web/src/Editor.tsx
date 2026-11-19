@@ -23,6 +23,9 @@ interface Peer {
 }
 
 export const TITLE_MAX = 80;
+const SPLIT_KEY = 'secondpass.split';
+const SPLIT_MIN = 20;
+const SPLIT_MAX = 80;
 
 export function Editor() {
   const { id = '' } = useParams();
@@ -38,6 +41,22 @@ export function Editor() {
   const titleEl = useRef<HTMLInputElement>(null);
   const editorEl = useRef<HTMLDivElement>(null);
   const canvasEl = useRef<HTMLCanvasElement>(null);
+  const previewEl = useRef<HTMLDivElement>(null);
+  const splitEl = useRef<HTMLElement>(null);
+  const clockEl = useRef<HTMLSpanElement>(null);
+  const rendererRef = useRef<ShaderRenderer | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [copied, setCopied] = useState<'idle' | 'ok'>('idle');
+  // Width of the code side, in percent; remembered per browser.
+  const [split, setSplit] = useState(() => {
+    try {
+      const v = Number(localStorage.getItem(SPLIT_KEY));
+      return v >= SPLIT_MIN && v <= SPLIT_MAX ? v : 50;
+    } catch {
+      return 50;
+    }
+  });
   const [status, setStatus] = useState<Status>('connecting');
   const [errors, setErrors] = useState<CompileError[]>([]);
   const [peers, setPeers] = useState<Peer[]>([]);
@@ -104,6 +123,8 @@ export function Editor() {
 
     const renderer = new ShaderRenderer(canvasEl.current);
     renderer.startLoop();
+    rendererRef.current = renderer;
+    setPaused(false);
 
     // Thumbnails: whoever is typing takes the picture. Several people may have the shader open; only
     // a client that made a local edit since its last upload captures (plus one backfill for shaders
@@ -186,11 +207,80 @@ export function Editor() {
       meta.unobserve(syncTitle);
       metaRef.current = null;
       view.destroy();
+      rendererRef.current = null;
       renderer.dispose();
       provider.destroy();
       doc.destroy();
     };
   }, [id, notFound]);
+
+  // The clock under the picture: read from the renderer a few times a second, without re-rendering React.
+  useEffect(() => {
+    const tick = window.setInterval(() => {
+      const r = rendererRef.current;
+      if (r && clockEl.current) clockEl.current.textContent = `t = ${r.time.toFixed(1)} s`;
+    }, 200);
+    return () => window.clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === previewEl.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const togglePause = () => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (r.paused) r.resume();
+    else r.pause();
+    setPaused(r.paused);
+  };
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void previewEl.current?.requestFullscreen?.().catch(() => {});
+  };
+
+  const saveSplit = (v: number) => {
+    try { localStorage.setItem(SPLIT_KEY, String(v)); } catch { /* private mode: it lasts for this page */ }
+  };
+  const moveSplit = (v: number) => {
+    const next = Math.round(Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, v)));
+    setSplit(next);
+    if (rendererRef.current?.paused) requestAnimationFrame(() => rendererRef.current?.refresh());
+    return next;
+  };
+  const dragSplit = (e: React.PointerEvent<HTMLDivElement>) => {
+    const box = splitEl.current?.getBoundingClientRect();
+    if (!box) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    let last = split;
+    const move = (ev: PointerEvent) => { last = moveSplit(((ev.clientX - box.left) / box.width) * 100); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      saveSplit(last);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const keySplit = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    saveSplit(moveSplit(split + (e.key === 'ArrowLeft' ? -5 : 5)));
+  };
+
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      setCopied('ok');
+    } catch {
+      // No clipboard access (an older browser, or permission denied): show the link to copy by hand.
+      window.prompt('Copy this link to share the shader:', location.href);
+      return;
+    }
+    window.setTimeout(() => setCopied('idle'), 2000);
+  };
 
   const fork = async () => {
     setForking(true);
@@ -220,10 +310,10 @@ export function Editor() {
     }
   };
 
-  if (notFound) return <div className="center">Shader not found. <a href="/">Make a new one</a></div>;
+  if (notFound) return <div className="center">Shader not found. <a href="/new">Make a new one</a></div>;
 
   return (
-    <div className="page">
+    <div className="page editor-page">
       <TopBar>
         <div className="title-block">
           <input
@@ -232,6 +322,7 @@ export function Editor() {
             aria-label="Shader title"
             placeholder={nameFirst ? 'Name it first' : 'Untitled'}
             maxLength={TITLE_MAX}
+            size={Math.min(28, Math.max(10, (title || 'Untitled').length + 2))}
             value={title}
             onChange={(e) => {
               setNameFirst(false);
@@ -239,11 +330,9 @@ export function Editor() {
             }}
           />
           {nameFirst && <span className="hint">Give it a name to add it to the gallery</span>}
-          {forkedFrom && !nameFirst && (
-            <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>
-          )}
         </div>
-        <span className={`status ${status}`}>{status}</span>
+        {inGallery !== null && <span className={`state-tag${inGallery ? ' gal' : ''}`}>{inGallery ? '✓ In gallery' : 'Draft'}</span>}
+        <span className={`live ${status}`}>{status === 'connected' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Offline'}</span>
         <div className="peers">
           {peers.map((p, i) => (
             <span key={i} className="peer-wrap">
@@ -255,22 +344,53 @@ export function Editor() {
             </span>
           ))}
         </div>
-        <button
-          className={inGallery ? 'secondary in-gallery' : 'secondary'}
-          onClick={toggleGallery}
-          disabled={inGallery === null || galleryBusy}
-          aria-pressed={inGallery === true}
-          title={inGallery ? 'In the gallery. Click to take it out.' : 'Only people with the link see it until you add it.'}
-        >
-          {inGallery ? '✓ In gallery' : 'Add to gallery'}
-        </button>
-        <button className="secondary" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
-        <button onClick={() => navigator.clipboard.writeText(location.href)}>Copy share link</button>
+        <div className="actions">
+          <button
+            className="secondary"
+            onClick={toggleGallery}
+            disabled={inGallery === null || galleryBusy}
+            title={inGallery ? 'Take it out of the gallery. It stays at this link.' : 'Only people with the link see it until you add it.'}
+          >
+            {inGallery ? 'Remove from gallery' : 'Add to gallery'}
+          </button>
+          <button className="secondary" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
+          <button onClick={share} title="Copy the link. Anyone with it can edit.">
+            {copied === 'ok' ? 'Link copied ✓' : 'Share'}
+          </button>
+        </div>
       </TopBar>
-      <main className="split">
-        <div className="editor" ref={editorEl} />
-        <div className="preview">
+      <main className="split" ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
+        <div className="code-pane">
+          <div className="editor" ref={editorEl} />
+          <div className="codebar">
+            {errors.length > 0
+              ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
+              : <span className="good">✓ Compiled</span>}
+            <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
+            {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>}
+          </div>
+        </div>
+        <div
+          className="grip"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize code and picture"
+          aria-valuenow={split}
+          aria-valuemin={SPLIT_MIN}
+          aria-valuemax={SPLIT_MAX}
+          tabIndex={0}
+          onPointerDown={dragSplit}
+          onKeyDown={keySplit}
+          onDoubleClick={() => saveSplit(moveSplit(50))}
+          title="Drag to resize; double-click to reset"
+        ><i /></div>
+        <div className="preview" ref={previewEl}>
           <canvas ref={canvasEl} data-testid="preview" />
+          <div className="stage-ctl">
+            <button onClick={togglePause} aria-pressed={paused}>{paused ? '▶ Play' : '❚❚ Pause'}</button>
+            <span ref={clockEl} className="clock">t = 0.0 s</span>
+            <button onClick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : '⤢ Full screen'}</button>
+          </div>
           {errors.length > 0 && (
             <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
           )}

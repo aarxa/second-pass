@@ -24,7 +24,7 @@ export function Runs() {
   return (
     <div className="page runs-page">
       <TopBar active="runs">
-        <button className="push" onClick={() => navigate('/')}>New shader</button>
+        <button className="push" onClick={() => navigate('/new')}>New shader</button>
       </TopBar>
       <section className="runs-hero">
         <div className="kick">A shader agent that checks its own work</div>
