@@ -11,11 +11,19 @@ export class ShaderRenderer {
   private program: WebGLProgram | null = null;
   private uniforms: { res: WebGLUniformLocation | null; time: WebGLUniformLocation | null; mouse: WebGLUniformLocation | null } | null = null;
   private start = performance.now();
+  private pausedAt: number | null = null;
   private mouse = [0, 0, 0, 0];
   private raf = 0;
+  private maxDpr: number;
   frameMs = 0;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  /**
+   * `maxDpr` caps the pixel density (2 by default; a showcase that only decorates a page can use
+   * less). `startAt` starts the clock at that many seconds, for a shader with a nicer moment later on.
+   */
+  constructor(private canvas: HTMLCanvasElement, opts: { maxDpr?: number; startAt?: number } = {}) {
+    this.maxDpr = opts.maxDpr ?? 2;
+    this.start -= (opts.startAt ?? 0) * 1000;
     const gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('WebGL2 is not available in this browser');
     this.gl = gl;
@@ -68,10 +76,12 @@ export class ShaderRenderer {
       time: gl.getUniformLocation(prog, 'iTime'),
       mouse: gl.getUniformLocation(prog, 'iMouse'),
     };
+    if (this.paused) this.draw(); // show the new code even while the clock is stopped
     return [];
   }
 
   startLoop() {
+    cancelAnimationFrame(this.raf);
     const frame = () => {
       this.raf = requestAnimationFrame(frame);
       this.draw();
@@ -79,9 +89,39 @@ export class ShaderRenderer {
     this.raf = requestAnimationFrame(frame);
   }
 
+  /** Seconds on the shader's clock (iTime). */
+  get time(): number {
+    return ((this.pausedAt ?? performance.now()) - this.start) / 1000;
+  }
+
+  get paused(): boolean {
+    return this.pausedAt !== null;
+  }
+
+  /** Stops the clock and the animation loop; the last frame stays on screen. */
+  pause() {
+    if (this.pausedAt !== null) return;
+    this.pausedAt = performance.now();
+    cancelAnimationFrame(this.raf);
+    this.draw();
+  }
+
+  /** Draws one frame now (e.g. after the canvas was resized while paused). */
+  refresh() {
+    this.draw();
+  }
+
+  /** Restarts the clock where it stopped. */
+  resume() {
+    if (this.pausedAt === null) return;
+    this.start += performance.now() - this.pausedAt;
+    this.pausedAt = null;
+    this.startLoop();
+  }
+
   private draw() {
     const gl = this.gl;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, this.maxDpr);
     const w = Math.floor(this.canvas.clientWidth * dpr), h = Math.floor(this.canvas.clientHeight * dpr);
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
@@ -92,7 +132,7 @@ export class ShaderRenderer {
     gl.viewport(0, 0, w, h);
     gl.useProgram(this.program);
     gl.uniform3f(this.uniforms.res, w, h, 1);
-    gl.uniform1f(this.uniforms.time, (t0 - this.start) / 1000);
+    gl.uniform1f(this.uniforms.time, this.time);
     gl.uniform4f(this.uniforms.mouse, this.mouse[0], this.mouse[1], this.mouse[2], this.mouse[3]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;

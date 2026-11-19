@@ -36,3 +36,14 @@ export interface Run extends RunSummary {
   steps: RunStep[];
   reel: ReelPass[];
 }
+
+/** The shader a run kept: the code of its best-scoring judged pass (the agent keeps the best). */
+export function keptCode(run: Run): string | null {
+  let draft: string | null = null;
+  let best: { score: number; code: string } | null = null;
+  for (const s of run.steps) {
+    if (s.type === 'draft') draft = s.code;
+    if (s.type === 'judge' && draft !== null && (!best || s.score > best.score)) best = { score: s.score, code: draft };
+  }
+  return best?.code ?? draft;
+}

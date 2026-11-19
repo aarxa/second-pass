@@ -71,7 +71,7 @@ export function Gallery() {
   return (
     <div className="page">
       <TopBar active="gallery">
-        <button className="push" onClick={() => navigate('/')}>New shader</button>
+        <button className="push" onClick={() => navigate('/new')}>New shader</button>
       </TopBar>
       <div className="gallery">
         {items.map((it) => (
