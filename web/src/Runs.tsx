@@ -47,18 +47,14 @@ export function Runs() {
   );
 }
 
-/** One run on the list: its picture (with the sketch, for a sketch run), the final pass's frames, the scores. */
+/** One run on the list: its picture (with the sketch, for a sketch run), the brief and the scores. The frames are in the replay. */
 function RunCard({ r }: { r: RunSummary }) {
-  const frames = r.finalFrames ?? [];
   return (
     <Link to={`/agent/${r.id}`} className="run-card">
       <div className="pic">
         <img src={`/agent-runs/${r.thumb}`} alt="" loading="lazy" />
         {r.sketch && <img className="sketch-inset" src={`/agent-runs/${r.sketch}`} alt="The sketch it was given" loading="lazy" />}
       </div>
-      {frames.length > 0 && (
-        <div className="film"><div className="mini-reel">{frames.map((f) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" />)}</div></div>
-      )}
       <div className="t">{r.title}</div>
       <div className="q">{r.sketch && <span className="from-sketch">From a sketch · </span>}“{briefText(r.request)}”</div>
       <div className="row">
