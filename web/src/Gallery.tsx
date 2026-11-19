@@ -186,7 +186,7 @@ export function Gallery() {
         <p className="gallery-hint">Hover a card to run it. Open one to see the code, or fork it to make your own.</p>
       </div>
       {slow && (
-        <p className="waking-line" role="status"><span className="spinner" aria-hidden="true" /> Waking the server… the free server sleeps when nobody has used it for a while. This takes up to a minute.</p>
+        <p className="waking-line" role="status"><i className="spinner" aria-hidden="true" /> Waking the server… the free server sleeps when nobody has used it for a while. This takes up to a minute.</p>
       )}
       <div className="gallery">
         {firstLoad && Array.from({ length: 6 }, (_, i) => <div key={i} className="card skeleton" aria-hidden="true"><div className="thumb" /><div className="bar" /><div className="bar short" /></div>)}

@@ -10,7 +10,7 @@ import { cpp } from '@codemirror/lang-cpp';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 
 import { ShaderRenderer, type CompileError } from './renderer';
-import { COLORS, NAME_MAX, getIdentity, initials, setIdentity, type Identity } from './identity';
+import { getIdentity, initials } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
 import { TopBar, editorTheme } from './theme';
 import { collabUrl } from './server';
@@ -75,8 +75,7 @@ export function Editor() {
   const rendererRef = useRef<ShaderRenderer | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
-  const [me, setMe] = useState<Identity>(() => getIdentity());
-  const [youOpen, setYouOpen] = useState(false);
+  const [me] = useState(() => getIdentity());
   const [toasts, setToasts] = useState<{ key: number; text: string; color: string }[]>([]);
   const lockedRef = useRef(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
@@ -93,6 +92,8 @@ export function Editor() {
     }
   });
   const [status, setStatus] = useState<Status>('connecting');
+  const [synced, setSynced] = useState(false); // the code has arrived from the server at least once
+  const everConnected = useRef(false);
   const [errors, setErrors] = useState<CompileError[]>([]);
   const [peers, setPeers] = useState<Peer[]>([]);
   const [notFound, setNotFound] = useState(false);
@@ -163,7 +164,11 @@ export function Editor() {
     provider.awareness.setLocalStateField('user', { name: self.name, color: self.color, colorLight: self.color + '33' });
 
     if (import.meta.env.DEV) (window as unknown as { __secondPass: unknown }).__secondPass = { doc, provider };
-    provider.on('status', (e: { status: Status }) => setStatus(e.status));
+    provider.on('status', (e: { status: Status }) => {
+      if (e.status === 'connected') everConnected.current = true;
+      setStatus(e.status);
+    });
+    setSynced(false);
     const updatePeers = () => {
       const list: Peer[] = [];
       provider.awareness.getStates().forEach((s, clientId) => {
@@ -286,6 +291,7 @@ export function Editor() {
     });
     viewRef.current = view;
     provider.once('sync', () => {
+      setSynced(true);
       recompile();
       syncTitle();
       syncLock();
@@ -375,6 +381,30 @@ export function Editor() {
     saveSplit(moveSplit(split + (e.key === 'ArrowLeft' ? -5 : 5)));
   };
 
+  // Reference "Insert": puts a snippet on its own line below the cursor (or on the cursor's line if it
+  // is empty), indented like that line, and puts the cursor after it. If the cursor was never placed
+  // (it sits at the very start), the snippet goes at the end of mainImage, where it will compile.
+  const insertSnippet = (code: string) => {
+    const view = viewRef.current;
+    if (!view || lockedRef.current) return;
+    const doc = view.state.doc;
+    let head = view.state.selection.main.head;
+    if (head === 0) {
+      const text = doc.toString();
+      const main = text.indexOf('void mainImage');
+      const close = main >= 0 ? text.lastIndexOf('\n}') : -1;
+      if (close > main && main >= 0) head = doc.lineAt(close).from; // the line before mainImage's closing brace
+    }
+    const line = doc.lineAt(head);
+    const indent = /^\s*/.exec(line.text)?.[0] || (head === 0 ? '' : '    ');
+    const text = code.split('\n').map((l) => indent + l).join('\n');
+    const blank = line.text.trim() === '';
+    const from = blank ? line.from : line.to;
+    const insert = blank ? text : '\n' + text;
+    view.dispatch({ changes: { from, to: blank ? line.to : line.to, insert }, selection: { anchor: from + insert.length }, scrollIntoView: true });
+    view.focus();
+  };
+
   const share = async () => {
     try {
       await navigator.clipboard.writeText(location.href);
@@ -385,13 +415,6 @@ export function Editor() {
       return;
     }
     window.setTimeout(() => setCopied('idle'), 2000);
-  };
-
-  const saveMe = (next: Identity) => {
-    const saved = setIdentity(next);
-    setMe(saved);
-    providerRef.current?.awareness.setLocalStateField('user', { name: saved.name, color: saved.color, colorLight: saved.color + '33' });
-    setYouOpen(false);
   };
 
   const fork = async () => {
@@ -471,12 +494,11 @@ export function Editor() {
         {inGallery !== null && <span className={`state-tag${inGallery ? ' gal' : ''}`}>{inGallery ? '✓ In gallery' : 'Draft'}</span>}
         <span className={`live ${status}`}>{status === 'connected' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Offline'}</span>
         <div className="peers">
-          <span className="peer-wrap you-wrap">
-            <button className="peer you" style={{ background: me.color }} onClick={() => setYouOpen((o) => !o)} aria-expanded={youOpen} title={`You: ${me.name}. Click to change your name or colour.`}>
+          {/* You: your own circle, marked by a soft pulse. Everyone is anonymous (a random animal name). */}
+          <span className="peer-wrap">
+            <span className="peer you" style={{ background: me.color, '--me': me.color } as React.CSSProperties} title={`You (${me.name})`}>
               {initials(me.name)}
-            </button>
-            <span className="you-tag">You</span>
-            {youOpen && <YouMenu me={me} onSave={saveMe} onClose={() => setYouOpen(false)} />}
+            </span>
           </span>
           {peers.map((p) => (
             <span key={p.clientId} className="peer-wrap">
@@ -522,20 +544,25 @@ export function Editor() {
       {!inGallery && galleryError && <div className="lock-banner"><span className="lock-error">{galleryError}</span></div>}
       {slow && status !== 'connected' && (
         <div className="lock-banner waking-banner" role="status">
-          <span className="spinner" aria-hidden="true" />
+          <i className="spinner" aria-hidden="true" />
           <span>
-            <b>{status === 'disconnected' ? 'Reconnecting…' : 'Waking the server…'}</b>{' '}
-            The free server sleeps when nobody has used it for a while. Waking it takes up to a minute; the code appears as soon as it's up.
+            {everConnected.current ? (
+              <><b>Reconnecting…</b> The connection to the server dropped. Your edits are kept and sync as soon as it's back.</>
+            ) : (
+              <><b>Waking the server…</b> The free server sleeps when nobody has used it for a while. Waking it takes up to a minute; the code appears as soon as it's up.</>
+            )}
           </span>
         </div>
       )}
-      <main className="split" ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
+      <main className={refOpen ? 'split with-ref' : 'split'} ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
         <div className="code-pane">
           <div className="editor" ref={editorEl} />
           <div className="codebar">
-            {errors.length > 0
-              ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
-              : <span className="good">✓ Compiled</span>}
+            {!synced
+              ? <span>Loading code…</span>
+              : errors.length > 0
+                ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
+                : <span className="good">✓ Compiled</span>}
             {inGallery && <span>Read-only</span>}
             <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
             {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>}
@@ -566,37 +593,13 @@ export function Editor() {
             <span ref={clockEl} className="clock">t = 0.0 s</span>
             <button onClick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : '⤢ Full screen'}</button>
           </div>
-          {refOpen && <Reference onClose={() => setRefOpen(false)} />}
           {errors.length > 0 && (
             <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
           )}
         </div>
+        {refOpen && <Reference onClose={() => setRefOpen(false)} onInsert={inGallery ? undefined : insertSnippet} />}
       </main>
     </div>
   );
 }
 
-/** The little menu on your own circle: your name and colour, as others see them. */
-function YouMenu({ me, onSave, onClose }: { me: Identity; onSave: (id: Identity) => void; onClose: () => void }) {
-  const [name, setName] = useState(me.name);
-  const [color, setColor] = useState(me.color);
-  return (
-    <form
-      className="you-menu"
-      onSubmit={(e) => { e.preventDefault(); onSave({ name, color }); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-    >
-      <label htmlFor="you-name">Your name, as others see it</label>
-      <input id="you-name" autoFocus value={name} maxLength={NAME_MAX} onChange={(e) => setName(e.target.value)} />
-      <div className="swatches" role="radiogroup" aria-label="Your colour">
-        {COLORS.map((c) => (
-          <button type="button" key={c} role="radio" aria-checked={c === color} aria-label={c} className={c === color ? 'on' : ''} style={{ background: c }} onClick={() => setColor(c)} />
-        ))}
-      </div>
-      <div className="you-actions">
-        <button type="button" className="secondary" onClick={onClose}>Cancel</button>
-        <button type="submit">Save</button>
-      </div>
-    </form>
-  );
-}
