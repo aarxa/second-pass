@@ -34,12 +34,16 @@ export class LiveRoom {
     this.lastWritten = text.toString();
   }
 
-  /** Joins the room for an editor page URL like https://host/s/<id>. */
-  static async join(pageUrl: string, o: { name?: string; timeoutMs?: number } & TypingOptions = {}): Promise<LiveRoom> {
+  /**
+   * Joins the room for an editor page URL like https://host/s/<id>. When the site is hosted apart
+   * from the server (Netlify in front, Cloud Run behind), pass the server's WebSocket address as
+   * `collab` (or set SECOND_PASS_COLLAB), e.g. wss://second-pass-xxxx.run.app/collab.
+   */
+  static async join(pageUrl: string, o: { name?: string; timeoutMs?: number; collab?: string } & TypingOptions = {}): Promise<LiveRoom> {
     const url = new URL(pageUrl);
     const id = /^\/s\/([^/]+)/.exec(url.pathname)?.[1];
     if (!id) throw new Error(`not a Second Pass editor URL (expected …/s/<id>): ${pageUrl}`);
-    const ws = `${url.protocol === 'https:' ? 'wss' : 'ws'}://${url.host}/collab`;
+    const ws = o.collab ?? process.env.SECOND_PASS_COLLAB ?? `${url.protocol === 'https:' ? 'wss' : 'ws'}://${url.host}/collab`;
     const doc = new Y.Doc();
     const provider = new WebsocketProvider(ws, id, doc, { WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket });
     await new Promise<void>((resolve, reject) => {

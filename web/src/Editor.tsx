@@ -13,6 +13,7 @@ import { ShaderRenderer, type CompileError } from './renderer';
 import { getIdentity } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
 import { TopBar, editorTheme } from './theme';
+import { collabUrl } from './server';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
@@ -74,8 +75,7 @@ export function Editor() {
     metaRef.current = meta;
     const syncTitle = () => setTitle(String(meta.get('title') ?? ''));
     meta.observe(syncTitle);
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const provider = new WebsocketProvider(`${proto}://${location.host}/collab`, id, doc);
+    const provider = new WebsocketProvider(collabUrl(), id, doc);
     sendOnlyLocalAwareness(provider); // don't echo other people's cursors back to the server
     const me = getIdentity();
     provider.awareness.setLocalStateField('user', { name: me.name, color: me.color, colorLight: me.color + '33' });
@@ -90,6 +90,17 @@ export function Editor() {
       setPeers(list);
     };
     provider.awareness.on('change', updatePeers);
+
+    // The server is billed for as long as any connection is open, so a tab left in the background
+    // lets go of its connection after a few minutes, and reconnects (catching up on edits) when it
+    // is looked at again.
+    let idleTimer = 0;
+    const onVisibility = () => {
+      window.clearTimeout(idleTimer);
+      if (document.hidden) idleTimer = window.setTimeout(() => provider.disconnect(), 5 * 60_000);
+      else provider.connect(); // no-op while still connected
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     const renderer = new ShaderRenderer(canvasEl.current);
     renderer.startLoop();
@@ -167,6 +178,8 @@ export function Editor() {
     return () => {
       window.clearTimeout(compileTimer);
       window.clearTimeout(captureTimer);
+      window.clearTimeout(idleTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
       backfillThumbnail.current = null;
       ytext.unobserve(markEdit);
       ytext.unobserve(recompile);
