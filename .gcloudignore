@@ -1,0 +1,15 @@
+# What `gcloud run deploy --source .` leaves out when it uploads the code to build the server.
+.git
+.gitignore
+.gcloudignore
+.env
+**/.env*
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+agent/out/
+agent/bench/runs/
+prof/
+server/load/
+docs/

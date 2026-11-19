@@ -5,6 +5,7 @@
 //   npm run agent -- --mode compile --dry "anything"     (fake model, no API key, no cost)
 //   npm run agent -- --room https://shaderlab.onrender.com/s/<id> "a lava lamp"
 //       joins that room and types each draft in live; edits people make are picked up
+//   add --collab wss://<server>/collab when the site is on a different host from the server
 //
 // The final shader and its frames are saved to agent/out/<time>/.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -22,6 +23,7 @@ async function main() {
   const mode = (take('--mode') ?? 'full') as Mode;
   const sketchPath = take('--sketch');
   const roomUrl = take('--room');
+  const collab = take('--collab'); // the server's WebSocket address, if the site is hosted apart from it
   const prompt = argv.join(' ').trim() || undefined;
   if (!prompt && !sketchPath) throw new Error('give a request, a --sketch, or both');
 
@@ -30,7 +32,7 @@ async function main() {
     : undefined;
   const model: Model = dry ? fakeModel() : new ClaudeModel();
   const renderer = await Renderer.open();
-  const room = roomUrl ? await LiveRoom.join(roomUrl) : null;
+  const room = roomUrl ? await LiveRoom.join(roomUrl, { collab }) : null;
   if (room) console.log(`Joined ${roomUrl}`);
   console.log(dry ? 'Dry run with a fake model.' : 'Writing the first draft (a minute or two: the model plans before it writes)…');
   room?.status('round 1: thinking');
