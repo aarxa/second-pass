@@ -17,6 +17,12 @@ export interface RunSummary {
   thumb: string; // file name next to the run, e.g. "lava-lamp.jpg"
   finalFrames: string[]; // the last judged pass's frames, for the mini reel on the list
   galleryId?: string; // the editable copy of its shader in the gallery, if there is one
+  sketch?: string; // file name of the sketch the agent was given, if the brief included one
+}
+
+/** The brief in the user's words: the prefix the agent adds ("Make a shader…") removed. */
+export function briefText(request: string): string {
+  return request.replace(/^Make a shader of the attached sketch\. Notes: /, '').replace(/^Make a shader: /, '');
 }
 
 /** One judged pass on the reel: the shader that was judged, rendered at a few moments. */

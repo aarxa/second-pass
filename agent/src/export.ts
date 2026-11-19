@@ -93,11 +93,21 @@ async function main() {
   const index: RunSummary[] = existsSync(indexPath) ? JSON.parse(await readFile(indexPath, 'utf8')) : [];
   const galleryId = gallery ?? index.find((r) => r.id === id)?.galleryId; // keep a link made earlier
   if (galleryId) summary.galleryId = galleryId;
+  // A sketch run: publish the sketch so the replay can show what the agent was given. It is copied as
+  // is, so resize big drawings before the run (the agent doesn't need more than ~800 px either).
+  const runDir = src.endsWith('.json') ? path.dirname(src) : src;
+  const sketchFile = ['sketch.png', 'sketch.jpg'].map((f) => path.join(runDir, f)).find((f) => existsSync(f));
+  if (sketchFile) {
+    const name = `${id}-sketch${path.extname(sketchFile)}`;
+    await writeFile(path.join(OUT, name), await readFile(sketchFile));
+    summary.sketch = name;
+  }
   const run: Run = { ...summary, passScore: PASS, steps: trace.steps.map(toRunStep), reel };
 
   await writeFile(path.join(OUT, `${id}.json`), JSON.stringify(run));
   await writeFile(path.join(OUT, `${id}.jpg`), Buffer.from(picture, 'base64'));
-  const next = [summary, ...index.filter((r) => r.id !== id)].sort((a, b) => b.date.localeCompare(a.date));
+  // The new run goes to the top; the rest keep the order they were given (it is curated, not by date).
+  const next = [summary, ...index.filter((r) => r.id !== id)];
   await writeFile(indexPath, JSON.stringify(next, null, 2) + '\n');
   console.log(`Published "${title}" (${scores.join(' → ')}, $${summary.costUsd}) to web/public/agent-runs/${id}.json`);
 }

@@ -2,7 +2,7 @@
 // pictures are files on the CDN), so it opens instantly even while the server is asleep.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { keptCode, type Run, type RunSummary } from './agentRun';
+import { briefText, keptCode, type Run, type RunSummary } from './agentRun';
 import { LiveShader } from './LiveShader';
 import { duration, money } from './Runs';
 import { plain } from './prose';
@@ -107,7 +107,7 @@ export function Home() {
             <span className="onair">Live in your browser</span>
             {hero && (
               <>
-                <div className="hero-brief"><span className="lab">The brief</span><span className="q">“{hero.request.replace(/^Make a shader: /, '')}”</span></div>
+                <div className="hero-brief"><span className="lab">The brief</span><span className="q">“{briefText(hero.request)}”</span></div>
                 <Link to={`/agent/${hero.id}`} className="judge-badge">Judge <b>{final}</b>/10 · {hero.passed ? 'kept' : 'best kept'}</Link>
               </>
             )}
@@ -120,7 +120,7 @@ export function Home() {
               <h2>Watch it take a second pass</h2>
               <Link to={`/agent/${loop.id}`}>Play the full replay →</Link>
             </div>
-            <p className="sec-lede">“{loop.request.replace(/^Make a shader: /, '')}”</p>
+            <p className="sec-lede">“{briefText(loop.request)}”</p>
             <div className={`pass-pair${shown.length === 1 ? ' one' : ''}`}>
               {shown.map((j, i) => {
                 const keep = j.score >= loop.passScore;

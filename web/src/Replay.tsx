@@ -17,7 +17,7 @@ import { ShaderRenderer } from './renderer';
 import { lineDiff, planComment } from './agentText';
 import { Inline, Prose, plain } from './prose';
 import { QUOTES } from './quotes';
-import type { Run, RunStep } from './agentRun';
+import { briefText, type Run, type RunStep } from './agentRun';
 import { duration, modelName, money } from './Runs';
 import { TopBar, editorTheme } from './theme';
 
@@ -95,6 +95,7 @@ export function Replay() {
   const [stage, setStage] = useState<Stage>('idle');
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [scrubbing, setScrubbing] = useState(false); // dragging the playhead along the reel
   const [errors, setErrors] = useState<string[]>([]);
 
   const editorEl = useRef<HTMLDivElement>(null);
@@ -314,14 +315,39 @@ export function Replay() {
   const stopShown = run.steps[last]?.type === 'stop' && shown >= last;
   const current = passes.find((p) => shown >= p.first && shown <= p.last) ?? (stopShown ? passes.at(-1) : undefined);
   const best = run.scores.length ? Math.max(...run.scores) : null;
-  const brief = run.request.replace(/^Make a shader: /, '');
+  const brief = briefText(run.request);
 
-  // The reel: a pass's frames light up once that pass has been rendered; the playhead sits after them.
+  // The reel: a pass's frames light up once that pass has been rendered.
   const reelPasses = run.reel.map((rp) => ({ rp, pass: passes.find((p) => p.round === rp.round) }));
   const revealed = (p?: Pass) => !!p && p.renderIdx !== null && shown >= p.renderIdx;
-  const totalFrames = run.reel.reduce((n, rp) => n + rp.frames.length, 0) || 1;
-  const shownFrames = reelPasses.reduce((n, { rp, pass }) => n + (revealed(pass) ? rp.frames.length : 0), 0);
-  const headAt = shownFrames / totalFrames;
+
+  // The playhead's place on the reel. Each judged pass owns an equal stretch of the reel, and the
+  // steps of that pass (draft, compile, render, judge) are spread across it, so dragging the playhead
+  // moves through the run step by step. The end of the reel is the end of the run.
+  const P = Math.max(1, reelPasses.length);
+  const posOf = (k: number): number => {
+    if (k < 0) return 0;
+    const i = reelPasses.findIndex(({ pass }) => pass && k <= pass.last);
+    if (i < 0) return 1;
+    const pass = reelPasses[i].pass!;
+    const f = Math.min(1, Math.max(0, (k - pass.first + 1) / (pass.last - pass.first + 1)));
+    return (i + f) / P;
+  };
+  const stepAt = (x: number): number => {
+    if (x >= 0.995) return last;
+    const i = Math.min(P - 1, Math.max(0, Math.floor(x * P)));
+    const pass = reelPasses[i]?.pass;
+    if (!pass) return last;
+    const count = pass.last - pass.first + 1;
+    return Math.min(pass.last, pass.first - 1 + Math.round((x * P - i) * count));
+  };
+  const headAt = posOf(shown);
+  const scrubTo = (e: { clientX: number }, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (e.clientX - r.left - 12) / Math.max(1, r.width - 24)));
+    const k = stepAt(x);
+    if (k !== cursorRef.current || playing) seek(k);
+  };
 
   const stageIndex = stage === 'done' ? STAGES.length : STAGES.indexOf(stage as (typeof STAGES)[number]);
 
@@ -331,7 +357,7 @@ export function Replay() {
         <div className="controls">
           <button onClick={() => (playing ? pause() : play())}>{playing ? '❚❚ Pause' : finished ? '↺ Replay' : '▶ Play'}</button>
           <select aria-label="Speed" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-            {[1, 2, 4].map((s) => <option key={s} value={s}>{s}×</option>)}
+            {[0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}×</option>)}
           </select>
           <button className="secondary" onClick={() => seek(last)} disabled={finished}>Skip to end</button>
           {run.galleryId && <button className="secondary" onClick={() => navigate(`/s/${run.galleryId}`)} title="Open the shader it kept in the editor, to play with or fork">Open in editor</button>}
@@ -341,8 +367,14 @@ export function Replay() {
         <div className="code" ref={editorEl} />
         <div className="side">
           <div className="brief-row">
-            <span className="lab">Brief</span>
-            <span className="q">“{brief}”</span>
+            {run.sketch && (
+              <a className="brief-sketch" href={`/agent-runs/${run.sketch}`} target="_blank" rel="noreferrer" title="The sketch it was given (opens full size)">
+                <img src={`/agent-runs/${run.sketch}`} alt="The sketch the agent was given" />
+                <span>Sketch</span>
+              </a>
+            )}
+            <span className="lab">{run.sketch ? 'Notes' : 'Brief'}</span>
+            <span className={brief.length > 90 ? 'q long' : 'q'}>“{brief}”</span>
             <span className="meta">{modelName(run.models.writer)} writes · {modelName(run.models.judge)} judges · pass mark {run.passScore}</span>
           </div>
 
@@ -358,10 +390,17 @@ export function Replay() {
 
           {run.reel.length > 0 && (
             <div className="reel">
-              <div className="film">
+              <div
+                className={`film${scrubbing ? ' scrubbing' : ''}`}
+                onPointerDown={(e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* keeps working without capture */ } setScrubbing(true); scrubTo(e, e.currentTarget); }}
+                onPointerMove={(e) => { if (scrubbing) scrubTo(e, e.currentTarget); }}
+                onPointerUp={() => setScrubbing(false)}
+                onPointerCancel={() => setScrubbing(false)}
+                title="Drag along the reel to move through the run"
+              >
                 <div className="row">
                   {reelPasses.map(({ rp, pass }) => (
-                    <div key={rp.round} className="pass-frames" onClick={() => pass && seek(pass.last)} title={`Jump to pass ${rp.round}`}>
+                    <div key={rp.round} className="pass-frames">
                       {rp.frames.map((f) => (
                         <figure key={f.t} className={revealed(pass) ? '' : 'dim'}>
                           <img src={`/agent-runs/${f.src}`} alt={`Pass ${rp.round} at ${f.t} seconds`} loading="lazy" />
@@ -371,7 +410,23 @@ export function Replay() {
                     </div>
                   ))}
                 </div>
-                <span className="head" style={{ left: `calc(12px + (100% - 24px) * ${headAt})` }} />
+                <span
+                  className="head"
+                  role="slider"
+                  tabIndex={0}
+                  aria-label="Position in the run"
+                  aria-valuemin={-1}
+                  aria-valuemax={last}
+                  aria-valuenow={shown}
+                  aria-valuetext={current ? `Pass ${current.round}, ${stage}` : 'Start'}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                      e.preventDefault();
+                      seek(Math.min(last, Math.max(-1, cursorRef.current + (e.key === 'ArrowRight' ? 1 : -1))));
+                    }
+                  }}
+                  style={{ left: `calc(12px + (100% - 24px) * ${headAt})` }}
+                />
               </div>
               <div className="labels">
                 {reelPasses.map(({ rp, pass }) => {

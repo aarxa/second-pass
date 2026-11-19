@@ -589,9 +589,13 @@ export function Editor() {
         <div className="preview" ref={previewEl}>
           <canvas ref={canvasEl} data-testid="preview" />
           <div className="stage-ctl">
-            <button onClick={togglePause} aria-pressed={paused}>{paused ? '▶ Play' : '❚❚ Pause'}</button>
+            <button onClick={togglePause} aria-pressed={paused} aria-label={paused ? 'Play' : 'Pause'} title={paused ? 'Play' : 'Pause'}>
+              <span aria-hidden="true">{paused ? '▶' : '❚❚'}</span><span className="lbl">{paused ? 'Play' : 'Pause'}</span>
+            </button>
             <span ref={clockEl} className="clock">t = 0.0 s</span>
-            <button onClick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : '⤢ Full screen'}</button>
+            <button onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title={fullscreen ? 'Exit full screen' : 'Full screen'}>
+              <span aria-hidden="true">⤢</span><span className="lbl">{fullscreen ? 'Exit full screen' : 'Full screen'}</span>
+            </button>
           </div>
           {errors.length > 0 && (
             <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
