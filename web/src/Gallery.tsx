@@ -1,7 +1,10 @@
 // Gallery: the shaders someone added (new ones are drafts until then), most recently added first,
-// loaded a page at a time with the server's cursor.
+// loaded a page at a time with the server's cursor. Hovering a card runs the real shader in it; the
+// ones the agent wrote are tagged and link to their replay.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import type { RunSummary } from './agentRun';
+import { LiveShader } from './LiveShader';
 import { TopBar } from './theme';
 
 interface Item {
@@ -13,6 +16,8 @@ interface Item {
   thumbnailAt: string | null;
   publishedAt: string; // always set for gallery items
 }
+
+type Filter = 'all' | 'agent' | 'people';
 
 /** A stable two-color gradient per shader for cards that don't have a thumbnail yet. */
 function placeholder(id: string): string {
@@ -32,18 +37,104 @@ function ago(iso: string): string {
   return 'just now';
 }
 
+// Each shader's code, fetched once, for the live preview on hover.
+const codeCache = new Map<string, Promise<string | null>>();
+function codeFor(id: string): Promise<string | null> {
+  if (!codeCache.has(id)) {
+    codeCache.set(
+      id,
+      fetch(`/api/shaders/${id}/code`)
+        .then((r) => (r.ok ? (r.json() as Promise<{ code: string }>) : null))
+        .then((j) => j?.code ?? null)
+        .catch(() => null),
+    );
+  }
+  return codeCache.get(id)!;
+}
+// Only devices with a real pointer get hover previews, and only if motion is welcome.
+const hoverPreviews = () =>
+  window.matchMedia('(hover: hover) and (pointer: fine)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: string }) {
+  const navigate = useNavigate();
+  const [hover, setHover] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  const [forking, setForking] = useState(false);
+  const [forkFailed, setForkFailed] = useState(false);
+
+  useEffect(() => {
+    if (!hover) return;
+    let live = true;
+    const t = window.setTimeout(() => codeFor(it.id).then((c) => live && setCode(c)), 150);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [hover, it.id]);
+
+  const fork = async () => {
+    setForking(true);
+    setForkFailed(false);
+    const res = await fetch(`/api/shaders/${it.id}/fork`, { method: 'POST' }).catch(() => null);
+    if (res?.ok) navigate(`/s/${((await res.json()) as { id: string }).id}`);
+    else {
+      setForking(false);
+      setForkFailed(true);
+    }
+  };
+
+  const enter = () => hoverPreviews() && setHover(true);
+  const leave = () => setHover(false);
+  return (
+    <article className="card">
+      <Link to={`/s/${it.id}`} className="thumb" style={{ background: placeholder(it.id) }} onPointerEnter={enter} onPointerLeave={leave} onFocus={enter} onBlur={leave}>
+        {it.thumbnailAt && (
+          // ?v= is the thumbnail's version: the URL changes when the image does, so the server
+          // can let the browser cache each version forever.
+          <img
+            src={`/api/shaders/${it.id}/thumbnail?v=${new Date(it.thumbnailAt).getTime()}`}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width={320}
+            height={180}
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
+        )}
+        {hover && code && <LiveShader code={code} label={it.title} />}
+      </Link>
+      <div className="card-body">
+        <Link to={`/s/${it.id}`} className="card-title">{it.title}</Link>
+        <div className="card-meta">
+          added {ago(it.publishedAt)}
+          {it.forkedFrom && <> · forked from {forkedTitle ?? it.forkedFrom}</>}
+        </div>
+      </div>
+      <div className="card-actions">
+        {run ? <Link to={`/agent/${run}`} className="tag" title="Written by the agent: watch the run">Agent run</Link> : <span />}
+        {forkFailed && <span className="error-text small">Couldn't fork</span>}
+        <button className="secondary small" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
+      </div>
+    </article>
+  );
+}
+
 export function Gallery() {
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [runOf, setRunOf] = useState<Map<string, string>>(new Map()); // gallery id -> agent run id
   const started = useRef(false);
 
   const loadMore = useCallback(async (after: string | null) => {
     setLoading(true);
     setError(null);
+    const slowTimer = window.setTimeout(() => setSlow(true), 3000);
     try {
       const qs = new URLSearchParams({ limit: String(PAGE) });
       if (after) qs.set('cursor', after);
@@ -56,6 +147,8 @@ export function Gallery() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      window.clearTimeout(slowTimer);
+      setSlow(false);
       setLoading(false);
     }
   }, []);
@@ -64,49 +157,52 @@ export function Gallery() {
     if (started.current) return; // StrictMode runs effects twice in development
     started.current = true;
     void loadMore(null);
+    // Which gallery shaders the agent wrote: the runs list (a static file) links each run to its copy.
+    fetch('/agent-runs/index.json')
+      .then((r) => (r.ok ? (r.json() as Promise<RunSummary[]>) : []))
+      .then((runs) => setRunOf(new Map(runs.flatMap((r) => (r.galleryId ? [[r.galleryId, r.id] as const] : [])))))
+      .catch(() => {});
   }, [loadMore]);
 
   const titles = new Map(items.map((i) => [i.id, i.title]));
+  const shown = items.filter((i) => filter === 'all' || (filter === 'agent') === runOf.has(i.id));
+  const count = (f: Filter) => items.filter((i) => f === 'all' || (f === 'agent') === runOf.has(i.id)).length;
+  const firstLoad = loading && items.length === 0;
 
   return (
-    <div className="page">
+    <div className="page gallery-page">
       <TopBar active="gallery">
         <button className="push" onClick={() => navigate('/new')}>New shader</button>
       </TopBar>
+      <div className="gallery-bar">
+        <h1>Gallery</h1>
+        <div className="filters" role="group" aria-label="Show">
+          {([['all', 'All'], ['agent', 'Made by the agent'], ['people', 'Made by people']] as [Filter, string][]).map(([f, label]) => (
+            <button key={f} className={`chip${filter === f ? ' on' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>
+              {label}{items.length > 0 && <span>{count(f)}</span>}
+            </button>
+          ))}
+        </div>
+        <p className="gallery-hint">Hover a card to run it. Open one to see the code, or fork it to make your own.</p>
+      </div>
+      {slow && (
+        <p className="waking-line" role="status"><span className="spinner" aria-hidden="true" /> Waking the server… the free server sleeps when nobody has used it for a while. This takes up to a minute.</p>
+      )}
       <div className="gallery">
-        {items.map((it) => (
-          <Link key={it.id} to={`/s/${it.id}`} className="card">
-            <div className="thumb" style={{ background: placeholder(it.id) }}>
-              {it.thumbnailAt && (
-                // ?v= is the thumbnail's version: the URL changes when the image does, so the server
-                // can let the browser cache each version forever.
-                <img
-                  src={`/api/shaders/${it.id}/thumbnail?v=${new Date(it.thumbnailAt).getTime()}`}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  width={320}
-                  height={180}
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                />
-              )}
-            </div>
-            <div className="card-title">{it.title}</div>
-            <div className="card-meta">
-              added {ago(it.publishedAt)}
-              {it.forkedFrom && <> · forked from {titles.get(it.forkedFrom) ?? it.forkedFrom}</>}
-            </div>
-          </Link>
-        ))}
+        {firstLoad && Array.from({ length: 6 }, (_, i) => <div key={i} className="card skeleton" aria-hidden="true"><div className="thumb" /><div className="bar" /><div className="bar short" /></div>)}
+        {shown.map((it) => <Card key={it.id} it={it} run={runOf.get(it.id)} forkedTitle={it.forkedFrom ? titles.get(it.forkedFrom) : undefined} />)}
+        {!loading && !error && items.length > 0 && shown.length === 0 && (
+          <div className="muted">Nothing here yet for this filter.</div>
+        )}
         {items.length === 0 && !loading && !error && (
           <div className="muted">Nothing here yet. Open a shader, give it a name, and choose Add to gallery.</div>
         )}
       </div>
       <div className="gallery-footer">
         {error && <span className="error-text">Couldn't load shaders ({error}). </span>}
-        {!done && (
+        {!done && !firstLoad && (
           <button className="secondary" disabled={loading} onClick={() => loadMore(cursor)}>
-            {loading ? 'Loading…' : 'Load more'}
+            {loading ? 'Loading…' : error ? 'Try again' : 'Load more'}
           </button>
         )}
       </div>

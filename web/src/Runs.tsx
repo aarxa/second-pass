@@ -1,6 +1,6 @@
 // /agent: saved runs of the shader agent, each one replayable. The list is a static file
 // (web/public/agent-runs/index.json, written by `npm run export-run` in agent/), so it costs nothing.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { RunSummary } from './agentRun';
 import { TopBar } from './theme';
@@ -41,23 +41,53 @@ export function Runs() {
       </section>
       {error && <p className="error-text" style={{ padding: '0 24px' }}>Couldn't load the runs ({error}).</p>}
       <div className="run-list">
-        {runs?.map((r) => (
-          <Link key={r.id} to={`/agent/${r.id}`} className="run-card">
-            <div className="pic"><img src={`/agent-runs/${r.thumb}`} alt="" loading="lazy" /></div>
-            {r.finalFrames?.length > 0 && (
-              <div className="film"><div className="mini-reel">{r.finalFrames.map((f) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" />)}</div></div>
-            )}
-            <div className="t">{r.title}</div>
-            <div className="q">“{r.request.replace(/^Make a shader: /, '')}”</div>
-            <div className="row">
-              {r.scores.map((s, i) => (
-                <span key={i} className={`score-chip${i === r.scores.length - 1 && r.passed ? ' ok' : ''}`}>{s}</span>
-              ))}
-              <span>{r.rounds} {r.rounds === 1 ? 'pass' : 'passes'} · {money(r.costUsd)} · {duration(r.seconds)} · {modelName(r.models.writer)}</span>
-            </div>
-          </Link>
-        ))}
+        {runs?.map((r) => <RunCard key={r.id} r={r} />)}
       </div>
     </div>
+  );
+}
+
+/**
+ * One run on the list. Hovering (or focusing) it plays its reel like a flipbook: the picture steps
+ * through the final pass's frames at 0, 2, 5 and 8 seconds, and the strip below marks the one shown.
+ */
+function RunCard({ r }: { r: RunSummary }) {
+  const [frame, setFrame] = useState(-1); // -1: the still picture
+  const timer = useRef(0);
+  const frames = r.finalFrames ?? [];
+  const play = () => {
+    if (frames.length === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    window.clearInterval(timer.current);
+    let k = 0;
+    setFrame(0);
+    timer.current = window.setInterval(() => {
+      k = (k + 1) % frames.length;
+      setFrame(k);
+    }, 450);
+  };
+  const stop = () => {
+    window.clearInterval(timer.current);
+    setFrame(-1);
+  };
+  useEffect(() => () => window.clearInterval(timer.current), []);
+  return (
+    <Link to={`/agent/${r.id}`} className="run-card" onPointerEnter={play} onPointerLeave={stop} onFocus={play} onBlur={stop}>
+      <div className="pic">
+        <img src={`/agent-runs/${r.thumb}`} alt="" loading="lazy" />
+        {frames.map((f, i) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" className={`flip${i === frame ? ' on' : ''}`} />)}
+        {frame >= 0 && <span className="flip-t">{[0, 2, 5, 8][frame] ?? ''} s</span>}
+      </div>
+      {frames.length > 0 && (
+        <div className="film"><div className="mini-reel">{frames.map((f, i) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" className={i === frame ? 'on' : ''} />)}</div></div>
+      )}
+      <div className="t">{r.title}</div>
+      <div className="q">“{r.request.replace(/^Make a shader: /, '')}”</div>
+      <div className="row">
+        {r.scores.map((s, i) => (
+          <span key={i} className={`score-chip${i === r.scores.length - 1 && r.passed ? ' ok' : ''}`}>{s}</span>
+        ))}
+        <span>{r.rounds} {r.rounds === 1 ? 'pass' : 'passes'} · {money(r.costUsd)} · {duration(r.seconds)} · {modelName(r.models.writer)}</span>
+      </div>
+    </Link>
   );
 }

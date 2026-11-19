@@ -2,7 +2,8 @@
 // Accounts come later (see MILESTONES.md); until then this lives in localStorage.
 const ADJ = ['Swift', 'Quiet', 'Bright', 'Lucky', 'Cosmic', 'Neon', 'Velvet', 'Amber', 'Misty', 'Brave'];
 const NOUN = ['Otter', 'Comet', 'Fox', 'Pixel', 'Heron', 'Lynx', 'Nebula', 'Koi', 'Raven', 'Moth'];
-const COLORS = ['#f97316', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#eab308', '#14b8a6', '#ef4444'];
+export const COLORS = ['#f97316', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#eab308', '#14b8a6', '#ef4444'];
+export const NAME_MAX = 24;
 
 export interface Identity {
   name: string;
@@ -25,3 +26,16 @@ export function getIdentity(): Identity {
   }
   return id;
 }
+
+/** Saves a name and colour picked by the person (shown to others from the next change on). */
+export function setIdentity(id: Identity): Identity {
+  const clean = { name: id.name.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX) || 'Someone', color: COLORS.includes(id.color) ? id.color : COLORS[0] };
+  try {
+    localStorage.setItem('shaderlab.identity', JSON.stringify(clean));
+  } catch {
+    // private mode: the choice lasts for this page
+  }
+  return clean;
+}
+
+export const initials = (name: string) => name.split(' ').slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase();

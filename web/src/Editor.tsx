@@ -10,14 +10,16 @@ import { cpp } from '@codemirror/lang-cpp';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 
 import { ShaderRenderer, type CompileError } from './renderer';
-import { getIdentity } from './identity';
+import { COLORS, NAME_MAX, getIdentity, initials, setIdentity, type Identity } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
 import { TopBar, editorTheme } from './theme';
 import { collabUrl } from './server';
 import { forgetOwnerKey, removalKey, saveOwnerKey } from './keys';
+import { Reference } from './Reference';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
+  clientId: number;
   name: string;
   color: string;
   status?: string; // set by the shader agent: what it is doing right now
@@ -30,6 +32,28 @@ const lockable = new Compartment();
 const lockExtensions = (locked: boolean) => [EditorState.readOnly.of(locked), EditorView.editable.of(!locked)];
 const SPLIT_MIN = 20;
 const SPLIT_MAX = 80;
+
+// Someone's name shows on their cursor for a few seconds after they type or move it. The cursor
+// labels belong to y-codemirror.next and carry only the person's colour, so a small style sheet
+// reveals the labels of recently active colours.
+const activeColors = new Map<string, number>();
+let labelSheet: HTMLStyleElement | null = null;
+let labelTimer = 0;
+function showName(color: string) {
+  activeColors.set(color, Date.now());
+  renderLabels();
+}
+function renderLabels() {
+  labelSheet ??= document.head.appendChild(document.createElement('style'));
+  const now = Date.now();
+  for (const [c, t] of activeColors) if (now - t > 2500) activeColors.delete(c);
+  labelSheet.textContent = [...activeColors.keys()]
+    .filter((c) => /^#[0-9a-f]{3,8}$/i.test(c))
+    .map((c) => `.cm-ySelectionCaret[style*="${c}"] > .cm-ySelectionInfo { opacity: 1; }`)
+    .join('\n');
+  window.clearTimeout(labelTimer);
+  if (activeColors.size) labelTimer = window.setTimeout(renderLabels, 600);
+}
 
 export function Editor() {
   const { id = '' } = useParams();
@@ -50,6 +74,10 @@ export function Editor() {
   const clockEl = useRef<HTMLSpanElement>(null);
   const rendererRef = useRef<ShaderRenderer | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const providerRef = useRef<WebsocketProvider | null>(null);
+  const [me, setMe] = useState<Identity>(() => getIdentity());
+  const [youOpen, setYouOpen] = useState(false);
+  const [toasts, setToasts] = useState<{ key: number; text: string; color: string }[]>([]);
   const lockedRef = useRef(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
@@ -74,21 +102,41 @@ export function Editor() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/shaders/${id}`).then(async (r) => {
-      if (cancelled) return;
-      if (r.status !== 200) return setNotFound(true);
-      const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null; publishedAt: string | null };
-      setForkedFrom(meta.forkedFrom);
-      setInGallery(meta.publishedAt !== null);
-      if (meta.thumbnailAt === null) {
-        thumbnailMissing.current = true;
-        backfillThumbnail.current?.();
-      }
-    });
+    let retry = 0;
+    // Only a 404 means "no such shader". Anything else (the free server still waking, a network
+    // blip) is retried, so a slow start never shows "Shader not found".
+    const load = () =>
+      fetch(`/api/shaders/${id}`)
+        .then(async (r) => {
+          if (cancelled) return;
+          if (r.status === 404 || r.status === 400) return setNotFound(true);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null; publishedAt: string | null };
+          setForkedFrom(meta.forkedFrom);
+          setInGallery(meta.publishedAt !== null);
+          if (meta.thumbnailAt === null) {
+            thumbnailMissing.current = true;
+            backfillThumbnail.current?.();
+          }
+        })
+        .catch(() => {
+          if (!cancelled) retry = window.setTimeout(load, 3000);
+        });
+    void load();
     return () => {
       cancelled = true;
+      window.clearTimeout(retry);
     };
   }, [id]);
+
+  // "Connecting…" for more than a few seconds almost always means the free server is waking up.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (status === 'connected') { setSlow(false); return; }
+    const t = window.setTimeout(() => setSlow(true), 3000);
+    return () => window.clearTimeout(t);
+  }, [status]);
+  const [refOpen, setRefOpen] = useState(false);
 
   useEffect(() => {
     if (!editorEl.current || !canvasEl.current || notFound) return;
@@ -110,19 +158,50 @@ export function Editor() {
     meta.observe(syncLock);
     const provider = new WebsocketProvider(collabUrl(), id, doc);
     sendOnlyLocalAwareness(provider); // don't echo other people's cursors back to the server
-    const me = getIdentity();
-    provider.awareness.setLocalStateField('user', { name: me.name, color: me.color, colorLight: me.color + '33' });
+    providerRef.current = provider;
+    const self = getIdentity();
+    provider.awareness.setLocalStateField('user', { name: self.name, color: self.color, colorLight: self.color + '33' });
 
     if (import.meta.env.DEV) (window as unknown as { __secondPass: unknown }).__secondPass = { doc, provider };
     provider.on('status', (e: { status: Status }) => setStatus(e.status));
     const updatePeers = () => {
       const list: Peer[] = [];
       provider.awareness.getStates().forEach((s, clientId) => {
-        if (clientId !== doc.clientID && s.user) list.push(s.user as Peer);
+        if (clientId !== doc.clientID && s.user) list.push({ clientId, ...(s.user as Omit<Peer, 'clientId'>) });
       });
       setPeers(list);
     };
     provider.awareness.on('change', updatePeers);
+
+    // Who joined, who left, who is typing. Names of people present when you arrive aren't announced:
+    // only changes after the first couple of seconds are.
+    const known = new Map<number, { name: string; color: string; cursor: string }>();
+    let settled = false;
+    const settleTimer = window.setTimeout(() => { settled = true; }, 2500);
+    const toast = (text: string, color: string) => {
+      const key = Date.now() + Math.random();
+      setToasts((t) => [...t.slice(-3), { key, text, color }]);
+      window.setTimeout(() => setToasts((t) => t.filter((x) => x.key !== key)), 3500);
+    };
+    const onPresence = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }) => {
+      for (const id of [...added, ...updated]) {
+        if (id === doc.clientID) continue;
+        const s = provider.awareness.getStates().get(id) as { user?: { name: string; color: string }; cursor?: unknown } | undefined;
+        if (!s?.user) continue;
+        const cursor = JSON.stringify(s.cursor ?? null);
+        const before = known.get(id);
+        if (!before) { if (settled) toast(`${s.user.name} joined`, s.user.color); }
+        else if (before.name !== s.user.name && settled) toast(`${before.name} is now ${s.user.name}`, s.user.color);
+        else if (before.cursor !== cursor) showName(s.user.color);
+        known.set(id, { name: s.user.name, color: s.user.color, cursor });
+      }
+      for (const id of removed) {
+        const before = known.get(id);
+        known.delete(id);
+        if (before && settled) toast(`${before.name} left`, before.color);
+      }
+    };
+    provider.awareness.on('change', onPresence);
 
     // The server is billed for as long as any connection is open, so a tab left in the background
     // lets go of its connection after a few minutes, and reconnects (catching up on edits) when it
@@ -217,6 +296,9 @@ export function Editor() {
       window.clearTimeout(captureTimer);
       window.clearTimeout(idleTimer);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.clearTimeout(settleTimer);
+      provider.awareness.off('change', onPresence);
+      providerRef.current = null;
       backfillThumbnail.current = null;
       ytext.unobserve(markEdit);
       ytext.unobserve(recompile);
@@ -305,6 +387,13 @@ export function Editor() {
     window.setTimeout(() => setCopied('idle'), 2000);
   };
 
+  const saveMe = (next: Identity) => {
+    const saved = setIdentity(next);
+    setMe(saved);
+    providerRef.current?.awareness.setLocalStateField('user', { name: saved.name, color: saved.color, colorLight: saved.color + '33' });
+    setYouOpen(false);
+  };
+
   const fork = async () => {
     setForking(true);
     try {
@@ -382,10 +471,17 @@ export function Editor() {
         {inGallery !== null && <span className={`state-tag${inGallery ? ' gal' : ''}`}>{inGallery ? '✓ In gallery' : 'Draft'}</span>}
         <span className={`live ${status}`}>{status === 'connected' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Offline'}</span>
         <div className="peers">
-          {peers.map((p, i) => (
-            <span key={i} className="peer-wrap">
+          <span className="peer-wrap you-wrap">
+            <button className="peer you" style={{ background: me.color }} onClick={() => setYouOpen((o) => !o)} aria-expanded={youOpen} title={`You: ${me.name}. Click to change your name or colour.`}>
+              {initials(me.name)}
+            </button>
+            <span className="you-tag">You</span>
+            {youOpen && <YouMenu me={me} onSave={saveMe} onClose={() => setYouOpen(false)} />}
+          </span>
+          {peers.map((p) => (
+            <span key={p.clientId} className="peer-wrap">
               <span className="peer" style={{ background: p.color }} title={p.status ? `${p.name}: ${p.status}` : p.name}>
-                {p.name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+                {initials(p.name)}
               </span>
               {/* Only bots set a status (the shader agent shows what it is doing); people don't. */}
               {p.status && <span className="peer-status" style={{ borderColor: p.color }}>{p.status}</span>}
@@ -424,6 +520,15 @@ export function Editor() {
         </div>
       )}
       {!inGallery && galleryError && <div className="lock-banner"><span className="lock-error">{galleryError}</span></div>}
+      {slow && status !== 'connected' && (
+        <div className="lock-banner waking-banner" role="status">
+          <span className="spinner" aria-hidden="true" />
+          <span>
+            <b>{status === 'disconnected' ? 'Reconnecting…' : 'Waking the server…'}</b>{' '}
+            The free server sleeps when nobody has used it for a while. Waking it takes up to a minute; the code appears as soon as it's up.
+          </span>
+        </div>
+      )}
       <main className="split" ref={splitEl} style={{ '--split': `${split}%` } as React.CSSProperties}>
         <div className="code-pane">
           <div className="editor" ref={editorEl} />
@@ -434,6 +539,7 @@ export function Editor() {
             {inGallery && <span>Read-only</span>}
             <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
             {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>}
+            <button className="ref-toggle" onClick={() => setRefOpen((o) => !o)} aria-expanded={refOpen}>{refOpen ? 'Close reference' : 'Reference'}</button>
           </div>
         </div>
         <div
@@ -450,6 +556,9 @@ export function Editor() {
           onDoubleClick={() => saveSplit(moveSplit(50))}
           title="Drag to resize; double-click to reset"
         ><i /></div>
+        <div className="toasts" aria-live="polite">
+          {toasts.map((t) => <div key={t.key} className="toast"><i style={{ background: t.color }} />{t.text}</div>)}
+        </div>
         <div className="preview" ref={previewEl}>
           <canvas ref={canvasEl} data-testid="preview" />
           <div className="stage-ctl">
@@ -457,11 +566,37 @@ export function Editor() {
             <span ref={clockEl} className="clock">t = 0.0 s</span>
             <button onClick={toggleFullscreen}>{fullscreen ? 'Exit full screen' : '⤢ Full screen'}</button>
           </div>
+          {refOpen && <Reference onClose={() => setRefOpen(false)} />}
           {errors.length > 0 && (
             <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
           )}
         </div>
       </main>
     </div>
+  );
+}
+
+/** The little menu on your own circle: your name and colour, as others see them. */
+function YouMenu({ me, onSave, onClose }: { me: Identity; onSave: (id: Identity) => void; onClose: () => void }) {
+  const [name, setName] = useState(me.name);
+  const [color, setColor] = useState(me.color);
+  return (
+    <form
+      className="you-menu"
+      onSubmit={(e) => { e.preventDefault(); onSave({ name, color }); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+    >
+      <label htmlFor="you-name">Your name, as others see it</label>
+      <input id="you-name" autoFocus value={name} maxLength={NAME_MAX} onChange={(e) => setName(e.target.value)} />
+      <div className="swatches" role="radiogroup" aria-label="Your colour">
+        {COLORS.map((c) => (
+          <button type="button" key={c} role="radio" aria-checked={c === color} aria-label={c} className={c === color ? 'on' : ''} style={{ background: c }} onClick={() => setColor(c)} />
+        ))}
+      </div>
+      <div className="you-actions">
+        <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
   );
 }
