@@ -120,6 +120,8 @@ export class ClaudeModel implements Model {
   private async call(model: string, effort: ClaudeOptions['writerEffort'], system: string, messages: Anthropic.Beta.BetaMessageParam[], format: { type: 'json_schema'; schema: Record<string, unknown> }, onText?: (snapshot: string) => void) {
     // Streamed so long shaders never hit an HTTP timeout. Server-side fallbacks re-run a request on
     // another model if a safety classifier declines it (rare for shader code, but it fails softly).
+    // Haiku has no server-side fallback, so it is only requested for the models that support it.
+    const fallback = /^claude-(opus-5|sonnet-5-5|fable)/.test(model);
     const stream = this.client.beta.messages.stream({
       model,
       max_tokens: 32000,
@@ -127,8 +129,7 @@ export class ClaudeModel implements Model {
       messages,
       thinking: { type: 'adaptive' },
       output_config: { effort, format },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
+      ...(fallback ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
     });
     if (onText) stream.on('text', (_delta, snapshot) => onText(snapshot));
     const msg = await stream.finalMessage();
