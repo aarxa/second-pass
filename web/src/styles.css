@@ -365,6 +365,24 @@ button.small { padding: 4px 10px; font-size: 12px; }
   .run-row img { width: 72px; }
 }
 
+/* home: from a sketch (the painting and its shader, side by side, the same size) */
+.sketch-pair { display: grid; grid-template-columns: minmax(0, 1fr) 74px minmax(0, 1fr); align-items: center; gap: 6px; max-width: 980px; }
+.sketch-pair figure { margin: 0; display: grid; gap: 8px; justify-items: center; min-width: 0; }
+.sketch-pair figcaption { font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); text-align: center; }
+.sketch-paper img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 3px; border: 6px solid var(--panel); box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.45); transform: rotate(-1.5deg); }
+.sketch-live { width: 100%; }
+.sketch-live .film { width: 100%; padding: 12px 8px; border-radius: 8px; }
+.sketch-arrow { display: grid; justify-items: center; gap: 4px; text-align: center; font: 500 11px/1.35 var(--mono); color: var(--soft); }
+.sketch-arrow span { font: 400 26px/1 var(--sans); color: var(--ink); }
+@media (max-width: 560px) {
+  .sketch-pair { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); gap: 4px; }
+  .sketch-arrow { font-size: 0; }
+  .sketch-arrow span { font-size: 20px; }
+  .sketch-paper img { border-width: 4px; }
+  .sketch-live .film { padding: 9px 5px; }
+  .sketch-pair figcaption { font-size: 9.5px; letter-spacing: 0.04em; }
+}
+
 /* /admin */
 .admin { max-width: 560px; padding: 40px 24px; }
 .admin h1 { font: 800 28px/1.1 var(--sans); margin: 0 0 12px; letter-spacing: -0.02em; }
