@@ -54,7 +54,7 @@ export interface Trace {
 export interface Deps {
   model: Model;
   renderer: Renderer;
-  onStep?: (s: Step) => void; // for live output (CLI, or a shaderlab room)
+  onStep?: (s: Step) => void; // for live output (CLI, or a live room)
   /** Called with every draft before it is compiled; awaited, so a live room can type it in first. */
   onDraft?: (code: string, round: number) => Promise<void>;
   /** Called as each draft's plan streams in, before its code is ready (live rooms show it). */

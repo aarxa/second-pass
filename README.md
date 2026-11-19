@@ -1,11 +1,15 @@
-# ShaderLab
+# Second Pass
 
-A collaborative GLSL shader playground. Open a link, write a fragment shader, see it render live,
-and share the link: everyone on it edits the same code at the same time, Google-Docs style, with
-each person's cursor and name visible.
+A collaborative GLSL shader playground with an AI agent that checks its own work. Open a link, write a
+fragment shader, see it render live, and share the link: everyone on it edits the same code at the same
+time, Google-Docs style, with each person's cursor and name visible. Or ask the agent: it writes a
+shader, renders it, has a vision model judge the frames against your request, and takes another pass
+until it's right.
+
+The name is a graphics pun: a render *pass*, and another try until the shader *passes*.
 
 **Live: https://shaderlab.onrender.com** (free tier: the first visit after ~15 idle minutes takes up to
-a minute to wake the server).
+a minute to wake the server). **Watch the agent work: https://shaderlab.onrender.com/agent**
 
 Measured on the live deployment (Render, Oregon; client in San Jose): an edit typed by one user shows
 up for another in **42 ms at p50, 114 ms at p95** over `wss://` (30 edits, one network round trip
@@ -51,6 +55,20 @@ Reproduce: `docker compose -f docker-compose.yml -f docker-compose.load.yml up -
   a few seconds after a successful compile and uploads it. The server checks the real format from the
   file's bytes, size and dimension limits, and a per-shader write rate, then serves versioned URLs that
   browsers cache forever. Walkthrough: docs/THUMBNAILS_EXPLAINED.md.
+
+## The shader agent
+Give it a request (text or a sketch) and it writes a shader, compiles it in headless Chrome with the
+same wrapper as the editor, renders frames at 0, 2, 5 and 8 seconds, and has a vision model score them
+against the request. Below 7/10 it revises, seeing its own frames and the judge's critique. It can work
+in a live room as a collaborator (`--room`), typing each draft in while people watch or edit alongside.
+- **Replays** at [/agent](https://shaderlab.onrender.com/agent): saved runs played back step by step,
+  served as static files so they cost nothing.
+- **Benchmark**: 30 requests in three modes (one shot, compile fixing, the full visual loop), each final
+  shader scored the same way, plus a blind rating page to measure how far the judge agrees with a person.
+- **First runs**: a lava lamp went 6 → 7 in two rounds for $0.30 with Opus writing, and 5 → 7 for $0.05
+  with Haiku writing; a lotus went 6 → 8 for $0.53.
+
+Walkthrough of every decision: [docs/M7_EXPLAINED.md](docs/M7_EXPLAINED.md).
 
 ## Architecture
 ```

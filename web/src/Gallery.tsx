@@ -68,7 +68,7 @@ export function Gallery() {
   return (
     <div className="page">
       <header>
-        <Link to="/gallery" className="brand">ShaderLab</Link>
+        <Link to="/gallery" className="brand">Second Pass</Link>
         <span className="muted">Gallery</span>
         <Link to="/agent" className="header-link" style={{ marginLeft: 'auto' }}>Agent runs</Link>
         <button onClick={() => navigate('/')}>New shader</button>

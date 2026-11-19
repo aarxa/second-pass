@@ -22,7 +22,7 @@ export function Runs() {
   return (
     <div className="page">
       <header>
-        <Link to="/gallery" className="brand">ShaderLab</Link>
+        <Link to="/gallery" className="brand">Second Pass</Link>
         <span className="muted">Agent runs</span>
         <Link to="/gallery" className="header-link" style={{ marginLeft: 'auto' }}>Gallery</Link>
       </header>

@@ -1,4 +1,4 @@
-// The agent as a collaborator: it joins a shaderlab room like any other user (a y-websocket client
+// The agent as a collaborator: it joins a Second Pass room like any other user (a y-websocket client
 // with its own name and cursor) and types each draft into the shared document. Everyone in the room
 // watches it work, and every browser's live preview recompiles as it types.
 //
@@ -34,11 +34,11 @@ export class LiveRoom {
     this.lastWritten = text.toString();
   }
 
-  /** Joins the room for a shaderlab page URL like https://host/s/<id>. */
+  /** Joins the room for an editor page URL like https://host/s/<id>. */
   static async join(pageUrl: string, o: { name?: string; timeoutMs?: number } & TypingOptions = {}): Promise<LiveRoom> {
     const url = new URL(pageUrl);
     const id = /^\/s\/([^/]+)/.exec(url.pathname)?.[1];
-    if (!id) throw new Error(`not a shaderlab editor URL (expected …/s/<id>): ${pageUrl}`);
+    if (!id) throw new Error(`not a Second Pass editor URL (expected …/s/<id>): ${pageUrl}`);
     const ws = `${url.protocol === 'https:' ? 'wss' : 'ws'}://${url.host}/collab`;
     const doc = new Y.Doc();
     const provider = new WebsocketProvider(ws, id, doc, { WebSocketPolyfill: WebSocket as unknown as typeof globalThis.WebSocket });

@@ -1,4 +1,4 @@
-// The agent in a live room, against the real shaderlab server (in-memory storage) and a second,
+// The agent in a live room, against the real Second Pass server (in-memory storage) and a second,
 // human-like y-websocket client watching and editing.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';

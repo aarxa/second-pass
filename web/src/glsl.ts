@@ -12,11 +12,11 @@ precision highp float;
 uniform vec3 iResolution;
 uniform float iTime;
 uniform vec4 iMouse;
-out vec4 shaderlab_outColor;
+out vec4 secondpass_outColor;
 `;
 export const HEADER_LINES = HEADER.split('\n').length - 1;
 export const FOOTER = `
-void main() { mainImage(shaderlab_outColor, gl_FragCoord.xy); }
+void main() { mainImage(secondpass_outColor, gl_FragCoord.xy); }
 `;
 export const VERTEX = `#version 300 es
 void main() {

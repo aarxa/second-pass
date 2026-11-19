@@ -225,7 +225,7 @@ export function Replay() {
   return (
     <div className="page replay">
       <header>
-        <Link to="/gallery" className="brand">ShaderLab</Link>
+        <Link to="/gallery" className="brand">Second Pass</Link>
         <Link to="/agent" className="header-link">Agent runs</Link>
         <span className="replay-title">{run.title}</span>
         <div className="controls">

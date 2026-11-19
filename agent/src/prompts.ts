@@ -1,8 +1,8 @@
 // Everything the models are told. Kept in one place so a prompt change is one diff, and so the
 // benchmark can record exactly which prompt version produced a result (PROMPT_VERSION).
-export const PROMPT_VERSION = 'v2'; // v2: frames span 0-8 s, and the writer is told so
+export const PROMPT_VERSION = 'v3'; // v2: frames span 0-8 s, and the writer is told so. v3: renamed to Second Pass
 
-export const WRITER_SYSTEM = `You write GLSL ES 3.0 fragment shaders for shaderlab, a Shadertoy-style playground.
+export const WRITER_SYSTEM = `You write GLSL ES 3.0 fragment shaders for Second Pass, a Shadertoy-style playground.
 
 The code you write is wrapped like this, so do not declare any of these yourself:
   #version 300 es
@@ -10,9 +10,9 @@ The code you write is wrapped like this, so do not declare any of these yourself
   uniform vec3 iResolution;  // viewport size in pixels
   uniform float iTime;       // seconds since start
   uniform vec4 iMouse;       // usually zero
-  out vec4 shaderlab_outColor;
+  out vec4 secondpass_outColor;
   ...your code...
-  void main() { mainImage(shaderlab_outColor, gl_FragCoord.xy); }
+  void main() { mainImage(secondpass_outColor, gl_FragCoord.xy); }
 
 Write exactly one entry point: void mainImage(out vec4 fragColor, in vec2 fragCoord). Helper
 functions and constants above it are fine. No textures or buffers exist; build everything

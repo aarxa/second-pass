@@ -74,7 +74,7 @@ export function Editor() {
     const me = getIdentity();
     provider.awareness.setLocalStateField('user', { name: me.name, color: me.color, colorLight: me.color + '33' });
 
-    if (import.meta.env.DEV) (window as unknown as { __shaderlab: unknown }).__shaderlab = { doc, provider };
+    if (import.meta.env.DEV) (window as unknown as { __secondPass: unknown }).__secondPass = { doc, provider };
     provider.on('status', (e: { status: Status }) => setStatus(e.status));
     const updatePeers = () => {
       const list: Peer[] = [];
@@ -189,7 +189,7 @@ export function Editor() {
   return (
     <div className="page">
       <header>
-        <Link to="/gallery" className="brand">ShaderLab</Link>
+        <Link to="/gallery" className="brand">Second Pass</Link>
         <div className="title-block">
           <input
             className="title"
