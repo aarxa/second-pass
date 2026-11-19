@@ -1,0 +1,26 @@
+{
+  "name": "@shaderlab/agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "agent": "tsx src/cli.ts",
+    "bench": "tsx src/bench.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0",
+    "playwright-core": "^1.65.1",
+    "ws": "^8.23.0",
+    "y-websocket": "^3.1.0",
+    "yjs": "^13.6.33",
+    "zod": "^4.6.7"
+  }
+}
