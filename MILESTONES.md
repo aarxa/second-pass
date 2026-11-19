@@ -44,8 +44,9 @@ prepares you for. Write the code yourself and get each PR reviewed before mergin
 
 ## M6. Deploy (done)
 - Live on Render from `render.yaml` (Docker web service + managed Postgres), auto-deploys on push to main.
-- Render's free Postgres expires 30 days after creation (around 2026-12-09): move `DATABASE_URL` to
-  Neon's free tier or a paid Render database before then.
+- The database moved from Render's free Postgres (which expires after 30 days) to Neon's free tier on
+  2026-11-19 (docs/MOVE_DB.md). Still to do: delete `shaderlab-db` on Render and remove it from
+  `render.yaml` once Neon has run for a few days.
 
 ## M7. Shader agent (in progress; see docs/M7_EXPLAINED.md)
 - An agent that writes shaders from text or a sketch, compiles and renders them in headless Chrome,

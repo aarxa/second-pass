@@ -11,21 +11,33 @@ doesn't expire. Moving takes about 15 minutes and no code changes: the app only 
 3. On the project dashboard, open **Connect**, keep "Pooled connection" **off**, and copy the
    connection string. It looks like
    `postgresql://neondb_owner:...@ep-xxxx.us-west-2.aws.neon.tech/neondb?sslmode=require`.
+   If Neon shows a `.env` block instead, use `DATABASE_URL` (the one whose address has no `-pooler`),
+   not `DATABASE_URL_POOLED`. Skip Neon's "set up with your coding agent" prompt: the app already has
+   its database code and only needs this string.
 
 ## 2. Copy the data (in a terminal, from the `shaderlab` folder)
-In Render: open **shaderlab-db**, then **Connect**, then copy the **External Database URL**.
+Open **Docker Desktop** first (the script runs the Postgres tools in Docker). In Render: open
+**shaderlab-db**, then **Connect**, switch to the **External** tab, and copy the **External Database
+URL**. Its address ends in `.oregon-postgres.render.com`; the Internal one (`dpg-...-a` with nothing
+after it) only works inside Render.
 ```bash
 export SRC_DATABASE_URL='<Render external URL>'
 export DST_DATABASE_URL='<Neon connection string>'
 ./scripts/move-db.sh
 ```
-It prints the number of shaders copied and the migrations recorded (should be `1,2,3`).
+It prints the number of shaders copied and the migrations recorded (should be `1,2,3,4`). If a pasted
+address breaks across lines (the prompt turns into `>`), press Ctrl+C and paste it again on one line.
 
 ## 3. Point the app at Neon
 In Render: **shaderlab** (the web service), then **Environment**. Edit `DATABASE_URL`, paste the Neon
-connection string, and save. Render redeploys automatically (about 1 minute).
+connection string ending at `?sslmode=require` (leave off any `&channel_binding=require`), and save.
+Make sure a deploy runs after the change (Events); the running site keeps the old value until it does.
 
-Then check that the live site reads and writes through the new database.
+Then check that the live site writes to the new database: create a shader on the site, and Neon's
+`select count(*) from shaders` should go up by one.
+
+Finally, reset the Neon password (Roles, then neondb_owner, then Reset password) and update
+`DATABASE_URL` once more: the copy step typed both passwords into your terminal and shell history.
 
 ## 4. Later
 Once everything has worked for a few days, delete `shaderlab-db` on Render and remove the
