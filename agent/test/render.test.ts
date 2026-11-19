@@ -16,7 +16,7 @@ describe('renderer', () => {
     const out = await r.render(GRADIENT, { width: 128, height: 72 });
     expect(out.ok).toBe(true);
     if (!out.ok) return;
-    expect(out.frames).toHaveLength(3);
+    expect(out.frames).toHaveLength(4);
     expect(out.frames[0].png.length).toBeGreaterThan(100);
     expect(out.stats.spread).toBeGreaterThan(0.05); // a gradient, not a flat colour
     expect(out.stats.motion).toBeGreaterThan(0.01); // blue changes with iTime

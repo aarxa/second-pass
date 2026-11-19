@@ -56,6 +56,8 @@ export interface Deps {
   onStep?: (s: Step) => void; // for live output (CLI, or a shaderlab room)
   /** Called with every draft before it is compiled; awaited, so a live room can type it in first. */
   onDraft?: (code: string, round: number) => Promise<void>;
+  /** Called as each draft's plan streams in, before its code is ready (live rooms show it). */
+  onPlan?: (planSoFar: string, round: number) => void;
   /** Returns the code if a person edited it since the last draft (live rooms), otherwise null. */
   peekEdits?: () => string | null;
 }
@@ -110,7 +112,7 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
   try {
     for (round = 1; round <= maxRounds; round++) {
       // 1. Write (or rewrite) the shader, then get it compiling.
-      let { draft, usage } = await deps.model.write(history);
+      let { draft, usage } = await deps.model.write(history, { onPlan: deps.onPlan && ((p) => deps.onPlan!(p, round)) });
       spend(usage);
       history.push({ role: 'draft', draft });
       log({ type: 'draft', round, plan: draft.plan, code: draft.code, usage });
@@ -121,7 +123,7 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
       for (let fix = 0; errors.length && fix < maxCompileFixes; fix++) {
         if (total.costUsd >= budget) return finish('over_budget');
         feedback({ role: 'feedback', text: compilerFeedback(draft.code, errors) });
-        ({ draft, usage } = await deps.model.write(history));
+        ({ draft, usage } = await deps.model.write(history, { onPlan: deps.onPlan && ((p) => deps.onPlan!(p, round)) }));
         spend(usage);
         compileFixes++;
         history.push({ role: 'draft', draft });

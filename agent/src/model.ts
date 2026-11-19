@@ -17,8 +17,13 @@ export type WriterTurn =
   | { role: 'draft'; draft: Draft }
   | { role: 'feedback'; text: string; frames?: Image[] };
 
+export interface WriteHooks {
+  /** Called as the plan streams in (the whole plan so far), before the code is ready. */
+  onPlan?: (planSoFar: string) => void;
+}
+
 export interface Model {
-  write(history: WriterTurn[]): Promise<{ draft: Draft; usage: Usage }>;
+  write(history: WriterTurn[], hooks?: WriteHooks): Promise<{ draft: Draft; usage: Usage }>;
   judge(input: { request: string; sketch?: Image; frames: { t: number; image: Image }[]; stats: string }): Promise<{ verdict: Verdict; usage: Usage }>;
 }
 
@@ -79,7 +84,7 @@ export class ClaudeModel implements Model {
 
   get models() { return { writer: this.o.writerModel, judge: this.o.judgeModel }; }
 
-  async write(history: WriterTurn[]) {
+  async write(history: WriterTurn[], hooks: WriteHooks = {}) {
     const messages: Anthropic.Beta.BetaMessageParam[] = [];
     for (const turn of history) {
       if (turn.role === 'draft') {
@@ -92,7 +97,8 @@ export class ClaudeModel implements Model {
       content.push({ type: 'text', text: turn.text });
       messages.push({ role: 'user', content });
     }
-    const msg = await this.call(this.o.writerModel, this.o.writerEffort, WRITER_SYSTEM, messages, DRAFT_FORMAT);
+    const onText = hooks.onPlan ? (snapshot: string) => { const p = partialPlan(snapshot); if (p) hooks.onPlan!(p); } : undefined;
+    const msg = await this.call(this.o.writerModel, this.o.writerEffort, WRITER_SYSTEM, messages, DRAFT_FORMAT, onText);
     return { draft: DraftSchema.parse(parseJson(msg)), usage: usage(this.o.writerModel, msg) };
   }
 
@@ -111,7 +117,7 @@ export class ClaudeModel implements Model {
     return { verdict: VerdictSchema.parse(parseJson(msg)), usage: usage(this.o.judgeModel, msg) };
   }
 
-  private async call(model: string, effort: ClaudeOptions['writerEffort'], system: string, messages: Anthropic.Beta.BetaMessageParam[], format: { type: 'json_schema'; schema: Record<string, unknown> }) {
+  private async call(model: string, effort: ClaudeOptions['writerEffort'], system: string, messages: Anthropic.Beta.BetaMessageParam[], format: { type: 'json_schema'; schema: Record<string, unknown> }, onText?: (snapshot: string) => void) {
     // Streamed so long shaders never hit an HTTP timeout. Server-side fallbacks re-run a request on
     // another model if a safety classifier declines it (rare for shader code, but it fails softly).
     const stream = this.client.beta.messages.stream({
@@ -124,11 +130,23 @@ export class ClaudeModel implements Model {
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
     });
+    if (onText) stream.on('text', (_delta, snapshot) => onText(snapshot));
     const msg = await stream.finalMessage();
     if (msg.stop_reason === 'refusal') throw new Error(`the model declined (${msg.stop_details?.category ?? 'no category'})`);
     if (msg.stop_reason === 'max_tokens') throw new Error('the reply hit max_tokens before finishing');
     return msg;
   }
+}
+
+/**
+ * The plan so far, from a reply that is still streaming. The reply is JSON ({"plan": "...", ...}),
+ * so mid-stream it is cut off; this reads the plan string up to wherever the stream has got to.
+ */
+export function partialPlan(snapshot: string): string | null {
+  const m = /"plan"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(snapshot);
+  if (!m) return null;
+  const raw = m[1].replace(/\\u[0-9a-fA-F]{0,3}$/, ''); // drop a \u escape cut off mid-way
+  try { return JSON.parse(`"${raw}"`) as string; } catch { return null; }
 }
 
 function parseJson(msg: Anthropic.Beta.BetaMessage): unknown {

@@ -1,6 +1,6 @@
 // Everything the models are told. Kept in one place so a prompt change is one diff, and so the
 // benchmark can record exactly which prompt version produced a result (PROMPT_VERSION).
-export const PROMPT_VERSION = 'v1';
+export const PROMPT_VERSION = 'v2'; // v2: frames span 0-8 s, and the writer is told so
 
 export const WRITER_SYSTEM = `You write GLSL ES 3.0 fragment shaders for shaderlab, a Shadertoy-style playground.
 
@@ -17,13 +17,15 @@ The code you write is wrapped like this, so do not declare any of these yourself
 Write exactly one entry point: void mainImage(out vec4 fragColor, in vec2 fragCoord). Helper
 functions and constants above it are fine. No textures or buffers exist; build everything
 procedurally. Keep loops bounded by constants and keep the shader fast enough for a laptop.
+Your shader is checked from frames at 0, 2, 5 and 8 seconds, so the motion that was asked for must be
+clearly under way by 2 seconds. If it has an end (a flower opening), loop it so it keeps happening.
 
 First write a short plan (what is on screen, how each part is made, how it moves), then the code.
 When you get compiler errors or visual feedback, fix what it points to and keep what already works.`;
 
 export const JUDGE_SYSTEM = `You judge whether a rendered shader matches what was asked for.
 
-You get the request (text, a sketch, or both) and frames rendered at several times, plus simple
+You get the request (text, a sketch, or both) and frames rendered at several times (0 to 8 seconds), plus simple
 pixel measurements. Look at the frames themselves; the measurements only help you notice a blank,
 flat or frozen result.
 

@@ -118,3 +118,18 @@ describe('lineDiff', () => {
     expect(lineDiff(['a'], []).map((o) => o.kind)).toEqual(['del']);
   });
 });
+
+describe('plan narration', () => {
+  it('shows the plan as a growing comment, then replaces it with the code', async () => {
+    const { id, url } = await newShader();
+    const watcher = await person(id);
+    const room = await LiveRoom.join(url, { tickMs: 0 });
+    cleanup.push(() => room.leave());
+    room.narrate('A pond at night.');
+    room.narrate('A pond at night. A lotus opens slowly in the middle.');
+    await until(() => watcher.text.toString().startsWith('// Shader agent is planning:\n// A pond at night. A lotus opens'));
+    expect(room.peekEdits()).toBeNull(); // the comment is the agent's own edit, not a person's
+    await room.type(A);
+    await until(() => watcher.text.toString() === A);
+  }, 20_000);
+});

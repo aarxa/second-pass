@@ -56,7 +56,7 @@ describe('agent loop', () => {
     expect(t.bestScore).toBe(8);
     expect(t.code).toBe(GOOD);
     const feedback = seen[1].at(-1)!;
-    expect(feedback.role === 'feedback' && feedback.frames?.length).toBe(3); // it saw its own frames
+    expect(feedback.role === 'feedback' && feedback.frames?.length).toBe(4); // it saw its own frames
   }, 60_000);
 
   it('full: returns the best draft when it runs out of rounds, even if a later one is worse', async () => {

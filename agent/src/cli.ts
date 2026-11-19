@@ -33,11 +33,17 @@ async function main() {
   const room = roomUrl ? await LiveRoom.join(roomUrl) : null;
   if (room) console.log(`Joined ${roomUrl}`);
   console.log(dry ? 'Dry run with a fake model.' : 'Writing the first draft (a minute or two: the model plans before it writes)…');
+  room?.status('round 1: thinking');
+  let planRound = 0; // the round whose plan is streaming, so the status changes once per round, not per word
   try {
     const trace = await runAgent({ id: 'cli', prompt, sketch }, { mode }, {
       model, renderer,
       onStep: (s) => { print(s); if (room) room.status(statusFor(s)); },
       onDraft: room ? (code) => room.type(code) : undefined,
+      onPlan: room ? (plan, round) => {
+        if (planRound !== round) { planRound = round; room.status(`round ${round}: writing`); }
+        room.narrate(plan);
+      } : undefined,
       peekEdits: room ? () => room.peekEdits() : undefined,
     });
     // In a room, leave the best version on screen (a later, worse draft may be showing).
@@ -63,7 +69,7 @@ function statusFor(s: Step): string {
     case 'draft': return `round ${s.round}: compiling`;
     case 'compile': return s.ok ? `round ${s.round}: rendering` : `round ${s.round}: fixing errors`;
     case 'render': return `round ${s.round}: judging`;
-    case 'judge': return `round ${s.round}: scored ${s.verdict.score}/10`;
+    case 'judge': return `round ${s.round}: scored ${s.verdict.score}/10${s.verdict.score < 7 ? ', thinking about fixes' : ''}`;
     case 'stop': return s.reason.replace('_', ' ');
   }
 }

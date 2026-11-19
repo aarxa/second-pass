@@ -41,6 +41,10 @@ const CHROME_PATHS = [
 // a benchmark. It also means a broken shader can't take down a real GPU driver.
 const ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 
+// Frames span 8 seconds: slow requests (a flower opening, the sun setting) need time to show their
+// motion, and a judge that only saw the first 3 seconds marked a slow bloom as "nothing happens".
+export const DEFAULT_TIMES = [0, 2, 5, 8];
+
 export class Renderer {
   private constructor(private browser: Browser) {}
 
@@ -65,7 +69,7 @@ export class Renderer {
     return this.run(code, opts);
   }
 
-  private async run(code: string, { width = 512, height = 288, times = [0, 1.5, 3], timeoutMs = 8000 }: RenderOptions): Promise<RenderResult> {
+  private async run(code: string, { width = 512, height = 288, times = DEFAULT_TIMES, timeoutMs = 8000 }: RenderOptions): Promise<RenderResult> {
     const started = Date.now();
     const page = await this.browser.newPage();
     try {

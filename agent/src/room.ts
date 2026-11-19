@@ -18,6 +18,9 @@ export interface TypingOptions {
 
 export class LiveRoom {
   private lastWritten: string;
+  private header = ''; // the plan comment currently shown at the top of the code
+  private pendingPlan: string | null = null;
+  private narrateTimer: NodeJS.Timeout | null = null;
 
   private constructor(
     private provider: WebsocketProvider,
@@ -62,8 +65,37 @@ export class LiveRoom {
     return now === this.lastWritten ? null : now;
   }
 
+  /**
+   * Shows the plan as it streams in, as a comment at the top of the code, so people in the room see
+   * what the agent is about to do instead of a silent wait. Updates are batched every 120 ms.
+   */
+  narrate(planSoFar: string) {
+    this.pendingPlan = planSoFar;
+    this.narrateTimer ??= setTimeout(() => { this.narrateTimer = null; this.flushPlan(); }, 120);
+  }
+
+  private flushPlan() {
+    if (this.pendingPlan === null) return;
+    const next = planComment(this.pendingPlan);
+    const now = this.code;
+    if (!now.startsWith(this.header)) { this.header = ''; return; } // someone edited the comment: stop
+    let k = 0; // only touch what changed: usually just new words at the end
+    while (k < this.header.length && k < next.length && this.header[k] === next[k]) k++;
+    const untouched = now === this.lastWritten;
+    this.text.doc!.transact(() => {
+      this.text.delete(k, this.header.length - k);
+      this.text.insert(k, next.slice(k));
+    });
+    this.header = next;
+    this.cursor(next.length);
+    if (untouched) this.lastWritten = this.code; // the comment is the agent's own edit, not a person's
+  }
+
   /** Types `next` into the room as a line diff, moving the agent's cursor as it goes. */
   async type(next: string) {
+    if (this.narrateTimer) { clearTimeout(this.narrateTimer); this.narrateTimer = null; }
+    this.pendingPlan = null; // the draft is here: the plan comment is replaced by the code below
+    this.header = '';
     const from = withNewline(this.code).split('\n').slice(0, -1);
     const to = withNewline(next).split('\n').slice(0, -1);
     let pos = 0; // character index in the shared text
@@ -105,6 +137,20 @@ export class LiveRoom {
     const at = Y.createRelativePositionFromTypeIndex(this.text, Math.min(index, this.text.length));
     this.provider.awareness.setLocalStateField('cursor', { anchor: at, head: at });
   }
+}
+
+/** The plan as a // comment block, wrapped to fit the editor. */
+export function planComment(plan: string, width = 92): string {
+  const out = ['// Shader agent is planning:'];
+  for (const para of plan.split(/\n+/)) {
+    let line = '//';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      if (line.length + 1 + word.length > width && line !== '//') { out.push(line); line = '//'; }
+      line += ' ' + word;
+    }
+    if (line !== '//') out.push(line);
+  }
+  return out.join('\n') + '\n//\n';
 }
 
 type Op = { kind: 'keep' | 'del' | 'ins'; line: string };

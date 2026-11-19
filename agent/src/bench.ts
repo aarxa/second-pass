@@ -9,7 +9,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Renderer } from './render.ts';
+import { Renderer, DEFAULT_TIMES } from './render.ts';
 import { runAgent, describeStats, type Mode, type Task, type Trace } from './agent.ts';
 import { ClaudeModel, type Image, type Model } from './model.ts';
 import { fakeModel } from './fake.ts';
@@ -160,16 +160,16 @@ function ratePage(results: Result[], cases: Case[]): string {
   const req = new Map(cases.map((c) => [c.id, c.sketch ? `[sketch] ${c.prompt ?? ''}` : c.prompt ?? '']));
   const items = results.filter((r) => r.compiled && r.score >= 0).map((r) => ({ key: `${r.id}/${r.mode}`, request: req.get(r.id), dir: `${r.id}/${r.mode}`, sketch: r.id.startsWith('s-') }));
   return `<!doctype html><meta charset="utf-8"><title>Rate shaders</title>
-<style>body{font:15px system-ui;margin:24px;max-width:1100px}img{width:32%;border:1px solid #ccc}.b button{width:44px;height:36px;margin:2px}.b button.on{background:#111;color:#fff}</style>
+<style>body{font:15px system-ui;margin:24px;max-width:1100px}img{width:24%;border:1px solid #ccc}.b button{width:44px;height:36px;margin:2px}.b button.on{background:#111;color:#fff}</style>
 <h1>Rate the shaders</h1><p>Score each against its request, 0 to 10 (7+ = matches). You don't see which mode made it. Ratings are kept in this browser; press Download when done.</p>
 <p><span id="n"></span> <button id="dl">Download ratings.json</button></p><div id="list"></div>
 <script>
-const items=${JSON.stringify(items)};
+const items=${JSON.stringify(items)};const times=${JSON.stringify(DEFAULT_TIMES)};
 const key='shaderlab-ratings-'+location.pathname;let r={};try{r=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
 let seed=42;const rnd=()=>{seed=(seed+0x6d2b79f5)|0;let t=Math.imul(seed^(seed>>>15),1|seed);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296};
 for(let i=items.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[items[i],items[j]]=[items[j],items[i]]}
 const list=document.getElementById('list');
-items.forEach((it,i)=>{const d=document.createElement('div');d.innerHTML='<h3>#'+(i+1)+' '+(it.request||'')+'</h3>'+[0,1.5,3].map(t=>'<img loading="lazy" src="'+it.dir+'/frame-'+t+'.png">').join(' ')+'<div class="b">'+[...Array(11).keys()].map(s=>'<button data-s="'+s+'">'+s+'</button>').join('')+'</div>';
+items.forEach((it,i)=>{const d=document.createElement('div');d.innerHTML='<h3>#'+(i+1)+' '+(it.request||'')+'</h3>'+times.map(t=>'<img loading="lazy" src="'+it.dir+'/frame-'+t+'.png">').join(' ')+'<div class="b">'+[...Array(11).keys()].map(s=>'<button data-s="'+s+'">'+s+'</button>').join('')+'</div>';
 d.querySelectorAll('button').forEach(b=>{if(r[it.key]==b.dataset.s)b.classList.add('on');b.onclick=()=>{r[it.key]=+b.dataset.s;try{localStorage.setItem(key,JSON.stringify(r))}catch{};d.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));count()}});list.append(d)});
 function count(){document.getElementById('n').textContent=Object.keys(r).length+' of '+items.length+' rated'}count();
 document.getElementById('dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(r,null,2)]));a.download='ratings.json';a.click()};

@@ -15,7 +15,8 @@ const SHADERS = [
 export function fakeModel(): Model {
   let n = 0;
   return {
-    async write(history) {
+    async write(history, hooks) {
+      for (const part of ['Dry run: ', 'Dry run: a made-up plan, ', 'Dry run: a made-up plan, streamed in pieces.']) hooks?.onPlan?.(part);
       const fixing = history.at(-1)?.role === 'feedback';
       const code = fixing ? SHADERS[(n++ % 2) * 2] : SHADERS[n++ % SHADERS.length];
       return { draft: { plan: 'dry run', code }, usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 } };
