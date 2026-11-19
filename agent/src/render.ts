@@ -26,6 +26,7 @@ export type RenderResult =
 export interface RenderOptions {
   width?: number;
   height?: number;
+  format?: 'png' | 'jpeg'; // jpeg for pictures that get published (much smaller for noisy shaders)
   times?: number[];
   timeoutMs?: number; // a frame that takes longer than this is treated as a hang
 }
@@ -69,14 +70,14 @@ export class Renderer {
     return this.run(code, opts);
   }
 
-  private async run(code: string, { width = 512, height = 288, times = DEFAULT_TIMES, timeoutMs = 8000 }: RenderOptions): Promise<RenderResult> {
+  private async run(code: string, { width = 512, height = 288, times = DEFAULT_TIMES, timeoutMs = 8000, format = 'png' }: RenderOptions): Promise<RenderResult> {
     const started = Date.now();
     const page = await this.browser.newPage();
     try {
       // tsx (esbuild) wraps named functions in a __name() helper that doesn't exist in the page;
       // define a no-op version so inPage can be sent to the browser as-is.
       await page.evaluate('globalThis.__name = (f) => f');
-      const work = page.evaluate(inPage, { src: HEADER + code + FOOTER, vertex: VERTEX, width, height, times });
+      const work = page.evaluate(inPage, { src: HEADER + code + FOOTER, vertex: VERTEX, width, height, times, format });
       const timeout = new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), timeoutMs));
       const out = await Promise.race([work, timeout]);
       const ms = Date.now() - started;
@@ -95,7 +96,7 @@ export { HEADER_LINES };
 
 // Runs inside the browser page. It can't see anything from this module, so it takes everything as
 // arguments and returns plain data.
-function inPage({ src, vertex, width, height, times }: { src: string; vertex: string; width: number; height: number; times: number[] }) {
+function inPage({ src, vertex, width, height, times, format }: { src: string; vertex: string; width: number; height: number; times: number[]; format: 'png' | 'jpeg' }) {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -135,7 +136,8 @@ function inPage({ src, vertex, width, height, times }: { src: string; vertex: st
     const l = new Float32Array(width * height);
     for (let i = 0; i < l.length; i++) l[i] = (0.2126 * px[i * 4] + 0.7152 * px[i * 4 + 1] + 0.0722 * px[i * 4 + 2]) / 255;
     lumas.push(l);
-    frames.push(canvas.toDataURL('image/png').slice('data:image/png;base64,'.length));
+    const url = format === 'jpeg' ? canvas.toDataURL('image/jpeg', 0.85) : canvas.toDataURL('image/png');
+    frames.push(url.slice(url.indexOf(',') + 1));
   }
   let sum = 0, sq = 0, n = 0, motion = 0;
   for (const l of lumas) for (let i = 0; i < l.length; i++) { sum += l[i]; sq += l[i] * l[i]; n++; }

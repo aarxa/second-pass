@@ -50,7 +50,8 @@ async function main() {
     if (room && trace.code && room.code !== trace.code) await room.type(trace.code);
     const out = path.join('out', new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19));
     await mkdir(out, { recursive: true });
-    await writeFile(path.join(out, 'trace.json'), JSON.stringify(trace, null, 2));
+    const models = model instanceof ClaudeModel ? model.models : 'fake';
+    await writeFile(path.join(out, 'trace.json'), JSON.stringify({ ...trace, models }, null, 2));
     if (trace.code) {
       await writeFile(path.join(out, 'final.glsl'), trace.code);
       const shot = await renderer.render(trace.code);

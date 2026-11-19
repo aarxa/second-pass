@@ -4,6 +4,8 @@ import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 
 import { Editor } from './Editor';
 import { Gallery } from './Gallery';
+import { Runs } from './Runs';
+import { Replay } from './Replay';
 import './styles.css';
 
 // "/" creates a fresh shader and redirects to its share link. The request is shared module-wide
@@ -29,6 +31,8 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<NewShader />} />
         <Route path="/s/:id" element={<Editor />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/agent" element={<Runs />} />
+        <Route path="/agent/:id" element={<Replay />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

@@ -89,6 +89,25 @@ The header shows what it is doing ("round 2: judging") next to its avatar.
   money for anyone who clicks it, and headless Chrome doesn't fit in a 512 MB free instance. The
   agent connects to the room from wherever it runs, which needs no server changes at all.
 
+## Replays: showing runs without spending anything
+
+`/agent` lists saved runs and `/agent/<id>` plays one back: the plan types in as a comment, the code
+types over it (revisions retype only the changed lines), the preview renders it live in your browser,
+and a panel shows each compile result and the judge's score, critique and fixes. You can pause, change
+speed, or click any step to jump to it.
+
+Runs are **static files** in `web/public/agent-runs/`, published with:
+
+```bash
+cd agent
+npm run export-run -- out/<run folder> --id lava-lamp --title "Lava lamp"
+```
+
+That copies the useful parts of the trace and a picture of the final shader, and adds the run to the
+list. Commit the files and they deploy with the site. Static on purpose: a replay needs no API key, costs
+nothing to serve, and can't run out of credit, which matters for a public portfolio link. The live
+agent (`--room`) stays on your machine.
+
 ## The benchmark
 
 `agent/bench/cases.json` has 30 text requests (10 easy, 10 medium, 10 hard, from a gradient to a

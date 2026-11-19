@@ -8,6 +8,9 @@
 import WebSocket from 'ws';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+import { lineDiff, planComment } from '../../web/src/agentText.ts';
+
+export { lineDiff, planComment };
 
 const COLOR = '#b9a4ff';
 
@@ -137,37 +140,6 @@ export class LiveRoom {
     const at = Y.createRelativePositionFromTypeIndex(this.text, Math.min(index, this.text.length));
     this.provider.awareness.setLocalStateField('cursor', { anchor: at, head: at });
   }
-}
-
-/** The plan as a // comment block, wrapped to fit the editor. */
-export function planComment(plan: string, width = 92): string {
-  const out = ['// Shader agent is planning:'];
-  for (const para of plan.split(/\n+/)) {
-    let line = '//';
-    for (const word of para.split(/\s+/).filter(Boolean)) {
-      if (line.length + 1 + word.length > width && line !== '//') { out.push(line); line = '//'; }
-      line += ' ' + word;
-    }
-    if (line !== '//') out.push(line);
-  }
-  return out.join('\n') + '\n//\n';
-}
-
-type Op = { kind: 'keep' | 'del' | 'ins'; line: string };
-
-/** A line diff in document order (longest common subsequence). Shaders are short, so O(n·m) is fine. */
-export function lineDiff(a: string[], b: string[]): Op[] {
-  const n = a.length, m = b.length;
-  const lcs = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
-  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-  const ops: Op[] = [];
-  let i = 0, j = 0;
-  while (i < n || j < m) {
-    if (i < n && j < m && a[i] === b[j]) { ops.push({ kind: 'keep', line: a[i] }); i++; j++; }
-    else if (j < m && (i === n || lcs[i][j + 1] >= lcs[i + 1][j])) { ops.push({ kind: 'ins', line: b[j] }); j++; }
-    else { ops.push({ kind: 'del', line: a[i] }); i++; }
-  }
-  return ops;
 }
 
 const withNewline = (s: string) => (s.endsWith('\n') ? s : s + '\n');

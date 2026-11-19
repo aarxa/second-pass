@@ -37,6 +37,7 @@ export type StopReason = 'passed' | 'oneshot' | 'compiled' | 'out_of_rounds' | '
 
 export interface Trace {
   taskId: string;
+  request: string; // what the writer was asked, in words
   mode: Mode;
   code: string | null; // the best shader found (highest judge score, or the last one that compiled)
   compiled: boolean;
@@ -104,7 +105,7 @@ export async function runAgent(task: Task, o: AgentOptions, deps: Deps): Promise
     log({ type: 'stop', reason: stop });
     const code = best?.code ?? lastCompiled;
     return {
-      taskId: task.id, mode, code, compiled: code !== null, bestScore: best?.score ?? null,
+      taskId: task.id, request, mode, code, compiled: code !== null, bestScore: best?.score ?? null,
       rounds: round, compileFixes, stop, error, steps, usage: total, ms: Date.now() - started,
     };
   };

@@ -5,6 +5,7 @@
   "scripts": {
     "agent": "tsx src/cli.ts",
     "bench": "tsx src/bench.ts",
+    "export-run": "tsx src/export.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },
