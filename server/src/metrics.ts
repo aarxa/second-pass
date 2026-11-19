@@ -62,3 +62,18 @@ export const lockedWritesDropped = new client.Counter({
   help: 'Edits dropped because the shader is in the gallery (locked)',
   registers: [registry],
 });
+export const persistFailures = new client.Counter({
+  name: 'shaderlab_persist_failures_total',
+  help: 'Saves that failed (database unreachable); the room keeps the edits and retries',
+  registers: [registry],
+});
+export const roomLoadFailures = new client.Counter({
+  name: 'shaderlab_room_load_failures_total',
+  help: 'Rooms that could not be loaded from the database; the client is asked to reconnect',
+  registers: [registry],
+});
+export const createsRejected = new client.Counter({
+  name: 'shaderlab_creates_rejected_total',
+  help: 'New shaders or forks refused by the hourly creation limits',
+  registers: [registry],
+});

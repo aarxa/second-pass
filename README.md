@@ -58,6 +58,10 @@ Reproduce: `docker compose -f docker-compose.yml -f docker-compose.load.yml up -
   edits) into a new shader linked to its original; `/gallery` lists the shaders someone named and
   added (new ones are drafts, seen only by people with the link), most recently added first, with
   cursor pagination. Schema changes go through numbered migrations. Walkthrough: docs/M2_EXPLAINED.md.
+- **When the database fails**: a save that fails keeps the edits in memory and is retried; a room that
+  can't be loaded asks the client to reconnect instead of staying broken; an unreachable database at
+  connect time gets a 503, and nothing crashes the server. **Creating shaders is rate-limited** (each new
+  shader or fork is a database row): 30 an hour per client and 600 an hour in total, with `Retry-After`.
 - **Locked gallery pieces**: adding a shader to the gallery locks it. The server drops edits to it (not
   just the page), every open editor switches to read-only, and visitors fork it to change it. There are
   no accounts: adding returns a random owner key that only that browser keeps (the server stores a

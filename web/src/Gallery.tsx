@@ -60,7 +60,7 @@ function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: 
   const [hover, setHover] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
-  const [forkFailed, setForkFailed] = useState(false);
+  const [forkFailed, setForkFailed] = useState('');
 
   useEffect(() => {
     if (!hover) return;
@@ -74,12 +74,12 @@ function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: 
 
   const fork = async () => {
     setForking(true);
-    setForkFailed(false);
+    setForkFailed('');
     const res = await fetch(`/api/shaders/${it.id}/fork`, { method: 'POST' }).catch(() => null);
     if (res?.ok) navigate(`/s/${((await res.json()) as { id: string }).id}`);
     else {
       setForking(false);
-      setForkFailed(true);
+      setForkFailed(res?.status === 429 ? 'Too many forks; try later' : "Couldn't fork");
     }
   };
 
@@ -112,7 +112,7 @@ function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: 
       </div>
       <div className="card-actions">
         {run ? <Link to={`/agent/${run}`} className="tag" title="Written by the agent: watch the run">Agent run</Link> : <span />}
-        {forkFailed && <span className="error-text small">Couldn't fork</span>}
+        {forkFailed && <span className="error-text small">{forkFailed}</span>}
         <button className="secondary small" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
       </div>
     </article>

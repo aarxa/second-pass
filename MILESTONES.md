@@ -43,10 +43,11 @@ prepares you for. Write the code yourself and get each PR reviewed before mergin
 - Interview prep: this is your best resume bullet; know every number and why it is what it is.
 
 ## M6. Deploy (done)
-- Live on Render from `render.yaml` (Docker web service + managed Postgres), auto-deploys on push to main.
+- Live on Render from `render.yaml` (Docker web service), auto-deploys on push to main; the site is
+  also served from Netlify (docs/HOSTING.md).
 - The database moved from Render's free Postgres (which expires after 30 days) to Neon's free tier on
-  2026-11-19 (docs/MOVE_DB.md). Still to do: delete `shaderlab-db` on Render and remove it from
-  `render.yaml` once Neon has run for a few days.
+  2026-11-19 (docs/MOVE_DB.md). `render.yaml` no longer mentions the old database; still to do by hand:
+  delete `shaderlab-db` in the Render dashboard.
 
 ## M7. Shader agent (in progress; see docs/M7_EXPLAINED.md)
 - An agent that writes shaders from text or a sketch, compiles and renders them in headless Chrome,

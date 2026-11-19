@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 
-import Fastify from 'fastify';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { customAlphabet } from 'nanoid';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -16,6 +16,7 @@ import { registry } from './metrics.js';
 import client from 'prom-client';
 import { DEFAULT_TITLE, cleanTitle, type PageKey, type Store } from './store.js';
 import { THUMB_MAX_BYTES, THUMB_TYPES, WriteLimiter, checkThumbnail } from './thumbnails.js';
+import { RateLimit, clientKey } from './limits.js';
 
 // 10 chars from a 56-symbol alphabet (no look-alikes): ~58 bits, unguessable enough for share links.
 const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -86,6 +87,13 @@ export interface AppOptions {
   thumbnailIntervalMs?: number;
   /** The site owner's key: it can take any shader out of the gallery. Default: ADMIN_TOKEN; unset = none. */
   adminToken?: string;
+  /** After a failed save, how long a room waits before trying again (default 5 s). */
+  persistRetryMs?: number;
+  /**
+   * New shaders (and forks) allowed per hour, per client and for everyone together. Defaults: 30 and
+   * 600, or CREATE_LIMIT_PER_CLIENT / CREATE_LIMIT_TOTAL (the load test raises them).
+   */
+  createLimits?: { perClient: number; total: number };
   logger?: boolean;
 }
 
@@ -94,6 +102,7 @@ export async function buildApp(opts: AppOptions) {
   const rooms = new RoomManager(opts.store, {
     persistDebounceMs: opts.persistDebounceMs ?? 1000,
     maxBufferedBytes: opts.maxBufferedBytes,
+    persistRetryMs: opts.persistRetryMs,
   });
 
   app.get('/api/health', async () => ({ ok: true, liveRooms: rooms.liveRooms }));
@@ -106,6 +115,20 @@ export async function buildApp(opts: AppOptions) {
     return registry.metrics();
   });
 
+  // Creating shaders is rate-limited (limits.ts): every new shader and every fork is a database row.
+  const HOUR = 60 * 60 * 1000;
+  const perClient = new RateLimit(opts.createLimits?.perClient ?? Number(process.env.CREATE_LIMIT_PER_CLIENT ?? 30), HOUR);
+  const total = new RateLimit(opts.createLimits?.total ?? Number(process.env.CREATE_LIMIT_TOTAL ?? 600), HOUR);
+  /** Counts one new shader against the limits; replies 429 and returns false if one is used up. */
+  const allowCreate = (req: FastifyRequest, reply: FastifyReply): boolean => {
+    const wait = perClient.take(clientKey(req)) || total.take('all');
+    if (!wait) return true;
+    metrics.createsRejected.inc();
+    reply.header('Retry-After', String(Math.ceil(wait / 1000)));
+    void reply.code(429).send({ error: 'too many new shaders in the last hour; try again later' });
+    return false;
+  };
+
   // A new shader starts from the default code, or from starter code the client sends (the
   // templates on /new): { "code": "..." }, at most STARTER_MAX characters.
   app.post<{ Body: { code?: unknown } | undefined }>('/api/shaders', async (req, reply) => {
@@ -113,6 +136,7 @@ export async function buildApp(opts: AppOptions) {
     if (code !== undefined && (typeof code !== 'string' || code.length > STARTER_MAX)) {
       return reply.code(400).send({ error: `code must be a string of at most ${STARTER_MAX} characters` });
     }
+    if (!allowCreate(req, reply)) return reply;
     const id = newShaderId();
     await opts.store.create(id, initialState(code));
     reply.code(201);
@@ -145,6 +169,7 @@ export async function buildApp(opts: AppOptions) {
     if (!ID_RE.test(id)) return reply.code(400).send({ error: 'bad id' });
     const source = await readSource(rooms, opts.store, id);
     if (!source) return reply.code(404).send({ error: 'not found' });
+    if (!allowCreate(req, reply)) return reply;
     // A fresh document with a copy of the text, rather than a copy of the original's CRDT state:
     // the state carries the whole edit history (deleted text is kept as tombstones), which every
     // fork-of-a-fork would inherit. The fork's own history starts here.
@@ -296,7 +321,17 @@ export async function buildApp(opts: AppOptions) {
     }
     const match = /^\/collab\/([^/?]+)/.exec(req.url ?? '');
     const id = match?.[1];
-    if (!id || !ID_RE.test(id) || !(await opts.store.exists(id))) {
+    let known = false;
+    try {
+      known = !!id && ID_RE.test(id) && (await opts.store.exists(id));
+    } catch (e) {
+      // The database is unreachable: say so (the client retries) instead of crashing the server.
+      console.error('could not check a shader before connecting', e);
+      socket.write('HTTP/1.1 503 Service Unavailable\r\nRetry-After: 5\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    if (!known || !id) {
       socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
       socket.destroy();
       return;

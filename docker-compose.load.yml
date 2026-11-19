@@ -4,3 +4,7 @@ services:
   app:
     cpus: 1.0
     mem_limit: 512m
+    environment:
+      # The load generator creates hundreds of rooms from one machine; lift the hourly creation limits.
+      CREATE_LIMIT_PER_CLIENT: "1000000"
+      CREATE_LIMIT_TOTAL: "1000000"

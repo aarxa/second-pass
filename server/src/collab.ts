@@ -47,6 +47,8 @@ export interface RoomOptions {
    * the CRDT: when it reconnects, the sync handshake sends exactly what it missed.
    */
   maxBufferedBytes?: number;
+  /** After a failed save (the database unreachable), how long to wait before trying again. */
+  persistRetryMs?: number;
 }
 
 export const DEFAULT_MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
@@ -176,8 +178,17 @@ class Room {
     if (this.persistTimer) return;
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null;
-      void this.persist();
+      this.persist().catch(() => this.retryLater());
     }, this.opts.persistDebounceMs);
+  }
+
+  /** After a failed save: the edits stay in memory, marked unsaved, and the save is tried again. */
+  private retryLater() {
+    if (this.persistTimer || this.destroyed) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      this.persist().catch(() => this.retryLater());
+    }, this.opts.persistRetryMs ?? 5000);
   }
 
   async persist() {
@@ -192,8 +203,17 @@ class Room {
     // source of truth; the column is a denormalized copy, cleaned (trimmed, length-capped) here.
     const title = cleanTitle(this.doc.getMap('meta').get('title'));
     const end = metrics.persistSeconds.startTimer();
-    await this.store.saveState(this.id, Y.encodeStateAsUpdate(this.doc), title);
-    end();
+    try {
+      await this.store.saveState(this.id, Y.encodeStateAsUpdate(this.doc), title);
+      end();
+    } catch (e) {
+      // The database is unreachable or refused the write. Nothing is lost: the document is still in
+      // memory, so mark it unsaved again and let the caller retry.
+      this.dirty = true;
+      metrics.persistFailures.inc();
+      console.error(`could not save shader ${this.id}`, e);
+      throw e;
+    }
   }
 
   destroyed = false;
@@ -283,15 +303,33 @@ export class RoomManager {
     let pending = this.rooms.get(id);
     if (!pending) {
       // Store the promise (not the room) so two users joining at once share one load.
-      pending = (async () => {
+      const load = (async () => {
         const r = new Room(id, this.store, this.opts);
         await r.load();
         return r;
       })();
-      this.rooms.set(id, pending);
+      pending = load;
+      this.rooms.set(id, load);
       metrics.liveRooms.set(this.rooms.size);
+      // A load that failed (the database unreachable) must not stay cached, or the shader could
+      // never be opened again until a restart: forget it, and the next connection tries afresh.
+      load.catch(() => {
+        if (this.rooms.get(id) === load) {
+          this.rooms.delete(id);
+          metrics.liveRooms.set(this.rooms.size);
+        }
+      });
     }
-    const loaded = await pending;
+    let loaded: Room;
+    try {
+      loaded = await pending;
+    } catch (e) {
+      metrics.roomLoadFailures.inc();
+      console.error(`could not load shader ${id}`, e);
+      // 1011: the server hit a problem. The client's provider reconnects on its own and tries again.
+      if (!closed) conn.close(1011, 'could not load the shader');
+      return;
+    }
     if (closed) {
       if (loaded.conns.size === 0) void this.unload(id, loaded);
       return;
@@ -310,7 +348,15 @@ export class RoomManager {
   }
 
   private async unload(id: string, room: Room) {
-    await room.persist();
+    try {
+      await room.persist();
+    } catch {
+      // Couldn't save: keep the room, and its unsaved edits, in memory and try again shortly.
+      setTimeout(() => {
+        if (room.conns.size === 0 && !room.destroyed) void this.unload(id, room);
+      }, this.opts.persistRetryMs ?? 5000);
+      return;
+    }
     // Someone may have joined while we were saving.
     if (room.conns.size === 0 && (await this.rooms.get(id)) === room) {
       this.rooms.delete(id);
@@ -340,7 +386,14 @@ export class RoomManager {
     return { state: Y.encodeStateAsUpdate(room.doc), title: cleanTitle(room.doc.getMap('meta').get('title')) };
   }
 
+  /** Saves every open room (on shutdown). A room that can't be saved is logged, not allowed to stop the rest. */
   async flushAll() {
-    for (const pending of this.rooms.values()) await (await pending).persist();
+    for (const [id, pending] of this.rooms) {
+      try {
+        await (await pending).persist();
+      } catch (e) {
+        console.error(`could not save shader ${id} on shutdown`, e);
+      }
+    }
   }
 }
