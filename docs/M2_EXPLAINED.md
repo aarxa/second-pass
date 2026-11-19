@@ -126,6 +126,13 @@ original. There's a test for the second part.
 
 ## 4. The gallery: `GET /api/shaders` in `app.ts`, `list()` in `store.ts`, `Gallery.tsx`
 
+> **Changed later (migration 5):** the gallery no longer lists every shader. "New shader" creates a
+> row straight away, so the gallery filled with blank "Untitled" drafts. Now a shader is listed only
+> after someone names it and chooses **Add to gallery** (`PUT /api/shaders/:id/gallery`;
+> `DELETE` takes it out). The order and the cursor below use `published_at` (when it was added)
+> instead of `created_at`, with a partial index that holds only gallery rows. The reasoning in this
+> section is otherwise unchanged.
+
 **Request/response:** `GET /api/shaders?limit=24&cursor=...` returns
 `{ items: [...], nextCursor: "..." | null }`. Use `nextCursor` to get the next page; `null` means the end.
 

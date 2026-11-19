@@ -30,6 +30,11 @@ export function Editor() {
   const [title, setTitle] = useState('');
   const [forkedFrom, setForkedFrom] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
+  // Gallery membership: null until the shader's metadata has loaded.
+  const [inGallery, setInGallery] = useState<boolean | null>(null);
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const [nameFirst, setNameFirst] = useState(false); // asked to add it while it had no name
+  const titleEl = useRef<HTMLInputElement>(null);
   const editorEl = useRef<HTMLDivElement>(null);
   const canvasEl = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState<Status>('connecting');
@@ -45,8 +50,9 @@ export function Editor() {
     fetch(`/api/shaders/${id}`).then(async (r) => {
       if (cancelled) return;
       if (r.status !== 200) return setNotFound(true);
-      const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null };
+      const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null; publishedAt: string | null };
       setForkedFrom(meta.forkedFrom);
+      setInGallery(meta.publishedAt !== null);
       if (meta.thumbnailAt === null) {
         thumbnailMissing.current = true;
         backfillThumbnail.current?.();
@@ -183,6 +189,24 @@ export function Editor() {
     }
   };
 
+  // A shader is a draft that only people with its link see until someone adds it to the gallery.
+  // The gallery wants a name, so with none yet, point at the title box instead.
+  const askForName = () => {
+    setNameFirst(true);
+    titleEl.current?.focus();
+  };
+  const toggleGallery = async () => {
+    if (!inGallery && !title.trim()) return askForName();
+    setGalleryBusy(true);
+    try {
+      const res = await fetch(`/api/shaders/${id}/gallery`, { method: inGallery ? 'DELETE' : 'PUT' }).catch(() => null);
+      if (res?.ok) setInGallery(((await res.json()) as { publishedAt: string | null }).publishedAt !== null);
+      else if (res?.status === 422) askForName(); // e.g. the title is literally "Untitled"
+    } finally {
+      setGalleryBusy(false);
+    }
+  };
+
   if (notFound) return <div className="center">Shader not found. <a href="/">Make a new one</a></div>;
 
   return (
@@ -190,14 +214,19 @@ export function Editor() {
       <TopBar>
         <div className="title-block">
           <input
-            className="title"
+            ref={titleEl}
+            className={nameFirst ? 'title need' : 'title'}
             aria-label="Shader title"
-            placeholder="Untitled"
+            placeholder={nameFirst ? 'Name it first' : 'Untitled'}
             maxLength={TITLE_MAX}
             value={title}
-            onChange={(e) => metaRef.current?.set('title', e.target.value)}
+            onChange={(e) => {
+              setNameFirst(false);
+              metaRef.current?.set('title', e.target.value);
+            }}
           />
-          {forkedFrom && (
+          {nameFirst && <span className="hint">Give it a name to add it to the gallery</span>}
+          {forkedFrom && !nameFirst && (
             <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>
           )}
         </div>
@@ -213,6 +242,15 @@ export function Editor() {
             </span>
           ))}
         </div>
+        <button
+          className={inGallery ? 'secondary in-gallery' : 'secondary'}
+          onClick={toggleGallery}
+          disabled={inGallery === null || galleryBusy}
+          aria-pressed={inGallery === true}
+          title={inGallery ? 'In the gallery. Click to take it out.' : 'Only people with the link see it until you add it.'}
+        >
+          {inGallery ? '✓ In gallery' : 'Add to gallery'}
+        </button>
         <button className="secondary" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
         <button onClick={() => navigator.clipboard.writeText(location.href)}>Copy share link</button>
       </TopBar>

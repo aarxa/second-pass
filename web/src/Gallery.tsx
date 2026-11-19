@@ -1,4 +1,5 @@
-// Gallery: every shader, newest first, loaded a page at a time with the server's cursor.
+// Gallery: the shaders someone added (new ones are drafts until then), most recently added first,
+// loaded a page at a time with the server's cursor.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TopBar } from './theme';
@@ -10,6 +11,7 @@ interface Item {
   createdAt: string;
   updatedAt: string;
   thumbnailAt: string | null;
+  publishedAt: string; // always set for gallery items
 }
 
 /** A stable two-color gradient per shader for cards that don't have a thumbnail yet. */
@@ -91,12 +93,14 @@ export function Gallery() {
             </div>
             <div className="card-title">{it.title}</div>
             <div className="card-meta">
-              {ago(it.createdAt)}
+              added {ago(it.publishedAt)}
               {it.forkedFrom && <> · forked from {titles.get(it.forkedFrom) ?? it.forkedFrom}</>}
             </div>
           </Link>
         ))}
-        {items.length === 0 && !loading && !error && <div className="muted">No shaders yet.</div>}
+        {items.length === 0 && !loading && !error && (
+          <div className="muted">Nothing here yet. Open a shader, give it a name, and choose Add to gallery.</div>
+        )}
       </div>
       <div className="gallery-footer">
         {error && <span className="error-text">Couldn't load shaders ({error}). </span>}

@@ -68,6 +68,9 @@ select { font: 600 13px var(--sans); color: var(--ink); background: var(--panel)
 .title { background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--ink); font: 700 15px var(--sans); padding: 4px 6px; min-width: 0; }
 .title:hover, .title:focus { border-color: var(--line2); outline: none; background: var(--panel); }
 .forked { font: 500 11px var(--mono); color: var(--soft); padding-left: 7px; text-decoration: none; }
+.title.need { border-color: var(--acc); background: var(--panel); }
+.title-block .hint { font: 500 11px var(--mono); color: var(--ink); padding-left: 7px; }
+button.in-gallery { color: var(--ok); border-color: currentColor; }
 .forked:hover { color: var(--ink); }
 .status { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line2); color: var(--soft); }
 .status.connected { color: var(--ok); border-color: currentColor; }

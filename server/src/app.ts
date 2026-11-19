@@ -13,7 +13,7 @@ import { RoomManager, initialState } from './collab.js';
 import * as metrics from './metrics.js';
 import { registry } from './metrics.js';
 import client from 'prom-client';
-import { cleanTitle, type PageKey, type Store } from './store.js';
+import { DEFAULT_TITLE, cleanTitle, type PageKey, type Store } from './store.js';
 import { THUMB_MAX_BYTES, THUMB_TYPES, WriteLimiter, checkThumbnail } from './thumbnails.js';
 
 // 10 chars from a 56-symbol alphabet (no look-alikes): ~58 bits, unguessable enough for share links.
@@ -99,7 +99,8 @@ export async function buildApp(opts: AppOptions) {
     return { id };
   });
 
-  // Gallery: newest first, cursor-paginated. ?limit=1..50 (default 20), ?cursor=<from nextCursor>.
+  // Gallery: shaders someone added, most recently added first, cursor-paginated.
+  // ?limit=1..50 (default 20), ?cursor=<from nextCursor>.
   app.get<{ Querystring: { limit?: string; cursor?: string } }>('/api/shaders', async (req, reply) => {
     const n = Number.parseInt(req.query.limit ?? '', 10);
     const limit = Number.isFinite(n) ? Math.min(Math.max(n, 1), PAGE_MAX) : PAGE_DEFAULT;
@@ -139,6 +140,23 @@ export async function buildApp(opts: AppOptions) {
     await opts.store.copyThumbnail(id, newId);
     reply.code(201);
     return { id: newId };
+  });
+
+  // Adding to and taking out of the gallery. Every shader starts as a draft that only people with its
+  // link see; anyone who can edit it can add it. It needs a real title first, so the gallery isn't a
+  // wall of "Untitled". The title is read from the live room when it is open (it may not be saved yet).
+  app.put<{ Params: { id: string } }>('/api/shaders/:id/gallery', async (req, reply) => {
+    const { id } = req.params;
+    if (!ID_RE.test(id)) return reply.code(400).send({ error: 'bad id' });
+    const source = await readSource(rooms, opts.store, id);
+    if (!source) return reply.code(404).send({ error: 'not found' });
+    if (cleanTitle(source.title) === DEFAULT_TITLE) return reply.code(422).send({ error: 'give it a title first' });
+    return opts.store.setPublished(id, true);
+  });
+  app.delete<{ Params: { id: string } }>('/api/shaders/:id/gallery', async (req, reply) => {
+    if (!ID_RE.test(req.params.id)) return reply.code(400).send({ error: 'bad id' });
+    const meta = await opts.store.setPublished(req.params.id, false);
+    return meta ?? reply.code(404).send({ error: 'not found' });
   });
 
   app.get<{ Params: { id: string } }>('/api/shaders/:id', async (req, reply) => {
