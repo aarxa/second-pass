@@ -70,7 +70,8 @@ export function Gallery() {
       <header>
         <Link to="/gallery" className="brand">ShaderLab</Link>
         <span className="muted">Gallery</span>
-        <button style={{ marginLeft: 'auto' }} onClick={() => navigate('/')}>New shader</button>
+        <Link to="/agent" className="header-link" style={{ marginLeft: 'auto' }}>Agent runs</Link>
+        <button onClick={() => navigate('/')}>New shader</button>
       </header>
       <div className="gallery">
         {items.map((it) => (

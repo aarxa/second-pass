@@ -1,0 +1,40 @@
+[
+  {
+    "id": "lotus",
+    "title": "Lotus on dark water",
+    "request": "Make a shader: a lotus opening on dark water",
+    "models": {
+      "writer": "claude-opus-5-5",
+      "judge": "claude-opus-5-5"
+    },
+    "date": "2026-11-19T03:26:33.502Z",
+    "rounds": 2,
+    "scores": [
+      6,
+      8
+    ],
+    "passed": true,
+    "costUsd": 0.531,
+    "seconds": 332,
+    "thumb": "lotus.jpg"
+  },
+  {
+    "id": "lava-lamp",
+    "title": "Lava lamp",
+    "request": "Make a shader: a lava lamp with slow rising blobs",
+    "models": {
+      "writer": "claude-opus-5-5",
+      "judge": "claude-opus-5-5"
+    },
+    "date": "2026-11-19T02:30:37.402Z",
+    "rounds": 2,
+    "scores": [
+      6,
+      7
+    ],
+    "passed": true,
+    "costUsd": 0.304,
+    "seconds": 136,
+    "thumb": "lava-lamp.jpg"
+  }
+]
