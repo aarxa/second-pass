@@ -365,6 +365,21 @@ button.small { padding: 4px 10px; font-size: 12px; }
   .run-row img { width: 72px; }
 }
 
+/* home: from a sketch */
+.sketch-pair { display: grid; grid-template-columns: minmax(0, 0.8fr) 120px minmax(0, 1.2fr); align-items: center; gap: 8px; }
+.sketch-pair figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
+.sketch-pair figcaption { font: 500 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); }
+.sketch-paper img { width: 100%; max-width: 460px; border-radius: 3px; border: 8px solid var(--panel); box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.45); transform: rotate(-2deg); }
+.sketch-live { width: 100%; }
+.sketch-live .film { width: 100%; padding: 18px 12px; border-radius: 10px; box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.5); }
+.sketch-arrow { display: grid; justify-items: center; gap: 6px; text-align: center; font: 500 12px/1.4 var(--mono); color: var(--soft); }
+.sketch-arrow span { font: 400 32px/1 var(--sans); color: var(--ink); }
+@media (max-width: 1000px) {
+  .sketch-pair { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .sketch-arrow span { transform: rotate(90deg); }
+  .sketch-paper img { max-width: 360px; }
+}
+
 /* /admin */
 .admin { max-width: 560px; padding: 40px 24px; }
 .admin h1 { font: 800 28px/1.1 var(--sans); margin: 0 0 12px; letter-spacing: -0.02em; }

@@ -57,6 +57,7 @@ export function Home() {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [hero, setHero] = useState<Run | null>(null);
   const [loop, setLoop] = useState<Run | null>(null);
+  const [sketchRun, setSketchRun] = useState<Run | null>(null);
 
   useEffect(() => {
     const get = <T,>(url: string) => fetch(url).then((r) => (r.ok ? (r.json() as Promise<T>) : Promise.reject(new Error(url))));
@@ -67,6 +68,9 @@ export function Home() {
         const loopId = list.some((r) => r.id === LOOP_RUN) ? LOOP_RUN : list.find((r) => r.rounds > 1)?.id;
         if (heroId) get<Run>(`/agent-runs/${heroId}.json`).then(setHero).catch(() => {});
         if (loopId) get<Run>(`/agent-runs/${loopId}.json`).then(setLoop).catch(() => {});
+        // The newest run that started from a sketch, for "From a sketch".
+        const sketchId = list.find((r) => r.sketch)?.id;
+        if (sketchId) get<Run>(`/agent-runs/${sketchId}.json`).then(setSketchRun).catch(() => {});
       })
       .catch(() => setRuns([]));
   }, []);
@@ -89,8 +93,8 @@ export function Home() {
             <div className="kick">A shader playground with an AI that checks its own work</div>
             <h1>It draws, looks at what it drew, and takes a <em>second pass.</em></h1>
             <p>
-              Write GLSL shaders with friends in one shared editor, live. Or give the agent a brief and watch it
-              render its own frames, have them judged, and revise until they pass.
+              Write GLSL shaders with friends in one shared editor, live. Or give the agent a brief, or a sketch,
+              and watch it render its own frames, have them judged, and revise until they pass.
             </p>
             <div className="cta">
               <button onClick={() => navigate(`/agent/${loop?.id ?? LOOP_RUN}`)}>Watch a run</button>
@@ -149,6 +153,32 @@ export function Home() {
                   </div>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {sketchRun?.sketch && (
+          <section className="home-sec">
+            <div className="sec-head">
+              <h2>From a sketch</h2>
+              <Link to={`/agent/${sketchRun.id}`}>Watch it happen →</Link>
+            </div>
+            <p className="sec-lede">A watercolour from my art portfolio, given to the agent with a two-line note.</p>
+            <div className="sketch-pair">
+              <figure className="sketch-paper">
+                <img src={`/agent-runs/${sketchRun.sketch}`} alt="The watercolour the agent was given: an apple and cut kiwis on a white cloth" loading="lazy" />
+                <figcaption>The painting</figcaption>
+              </figure>
+              <div className="sketch-arrow" aria-hidden="true">
+                <span>→</span>
+                {sketchRun.rounds} {sketchRun.rounds === 1 ? 'pass' : 'passes'} · {sketchRun.scores[sketchRun.scores.length - 1]}/10 · {money(sketchRun.costUsd)}
+              </div>
+              <figure className="sketch-live">
+                <div className="film">
+                  <LiveShader code={keptCode(sketchRun)} still={`/agent-runs/${sketchRun.thumb}`} label={`${sketchRun.title}, the agent's shader`} />
+                </div>
+                <figcaption>Its shader, running live in your browser</figcaption>
+              </figure>
             </div>
           </section>
         )}
