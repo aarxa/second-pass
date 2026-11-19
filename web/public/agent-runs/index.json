@@ -1,27 +1,75 @@
 [
   {
-    "id": "lava-lamp-haiku",
-    "title": "Lava lamp, written by Haiku",
-    "request": "Make a shader: a lava lamp with slow rising blobs",
+    "id": "black-hole",
+    "title": "Black hole",
+    "request": "Make a shader: a black hole with a blazing accretion disk, bending the light of the stars behind it",
     "models": {
-      "writer": "claude-haiku-5-5",
+      "writer": "claude-opus-5-5",
       "judge": "claude-opus-5-5"
     },
-    "date": "2026-11-19T04:25:55.261Z",
-    "rounds": 2,
+    "date": "2026-11-19T11:25:52.562Z",
+    "rounds": 1,
     "scores": [
-      5,
-      7
+      8
     ],
     "passed": true,
-    "costUsd": 0.049,
-    "seconds": 106,
-    "thumb": "lava-lamp-haiku.jpg",
+    "costUsd": 0.152,
+    "seconds": 96,
+    "thumb": "black-hole.jpg",
     "finalFrames": [
-      "lava-lamp-haiku-p2-0.jpg",
-      "lava-lamp-haiku-p2-2.jpg",
-      "lava-lamp-haiku-p2-5.jpg",
-      "lava-lamp-haiku-p2-8.jpg"
+      "black-hole-p1-0.jpg",
+      "black-hole-p1-2.jpg",
+      "black-hole-p1-5.jpg",
+      "black-hole-p1-8.jpg"
+    ]
+  },
+  {
+    "id": "synthwave",
+    "title": "Synthwave sunset",
+    "request": "Make a shader: a synthwave sunset: a striped neon sun sinking behind a glowing grid that scrolls toward you",
+    "models": {
+      "writer": "claude-opus-5-5",
+      "judge": "claude-opus-5-5"
+    },
+    "date": "2026-11-19T11:26:05.675Z",
+    "rounds": 2,
+    "scores": [
+      6,
+      8
+    ],
+    "passed": true,
+    "costUsd": 0.188,
+    "seconds": 79,
+    "thumb": "synthwave.jpg",
+    "finalFrames": [
+      "synthwave-p2-0.jpg",
+      "synthwave-p2-2.jpg",
+      "synthwave-p2-5.jpg",
+      "synthwave-p2-8.jpg"
+    ]
+  },
+  {
+    "id": "jellyfish",
+    "title": "Jellyfish in the deep",
+    "request": "Make a shader: a bioluminescent jellyfish pulsing as it drifts up through the deep sea",
+    "models": {
+      "writer": "claude-opus-5-5",
+      "judge": "claude-opus-5-5"
+    },
+    "date": "2026-11-19T11:27:26.998Z",
+    "rounds": 1,
+    "scores": [
+      8
+    ],
+    "passed": true,
+    "costUsd": 0.147,
+    "seconds": 72,
+    "thumb": "jellyfish.jpg",
+    "finalFrames": [
+      "jellyfish-p1-0.jpg",
+      "jellyfish-p1-2.jpg",
+      "jellyfish-p1-5.jpg",
+      "jellyfish-p1-8.jpg"
     ]
   },
   {
