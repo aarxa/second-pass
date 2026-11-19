@@ -46,6 +46,7 @@ export function Runs() {
                 <span className={r.passed ? 'pass' : 'fail'}>{r.scores.join(' → ')}</span>
                 {' · '}{r.rounds} {r.rounds === 1 ? 'round' : 'rounds'} · {money(r.costUsd)} · {duration(r.seconds)}
               </div>
+              <div className="card-meta">Written by {modelName(r.models.writer)}, judged by {modelName(r.models.judge)}</div>
             </Link>
           ))}
         </div>
