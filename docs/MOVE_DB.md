@@ -25,7 +25,8 @@ export SRC_DATABASE_URL='<Render external URL>'
 export DST_DATABASE_URL='<Neon connection string>'
 ./scripts/move-db.sh
 ```
-It prints the number of shaders copied and the migrations recorded (should be `1,2,3,4`). If a pasted
+It prints the number of shaders copied and the migrations recorded (`1,2,3,4` at the time of the move;
+later migrations are applied automatically when the server starts). If a pasted
 address breaks across lines (the prompt turns into `>`), press Ctrl+C and paste it again on one line.
 
 ## 3. Point the app at Neon
