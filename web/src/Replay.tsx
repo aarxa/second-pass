@@ -15,6 +15,7 @@ import { cpp } from '@codemirror/lang-cpp';
 
 import { ShaderRenderer } from './renderer';
 import { lineDiff, planComment } from './agentText';
+import { Inline, Prose, plain } from './prose';
 import type { Run, RunStep } from './agentRun';
 import { duration, modelName, money } from './Runs';
 import { TopBar, editorTheme } from './theme';
@@ -376,12 +377,17 @@ export function Replay() {
               return (
                 <div key={p.round} className={`pnote${current === p ? ' active' : ''}`} onClick={() => seek(p.last)}>
                   <h6><span>Pass {p.round}</span><span>{money(p.costUsd)}</span></h6>
-                  <div className="tried"><b>What it tried</b><span>{p.plan}</span></div>
+                  <div className="tried"><b>What it tried</b><span>{plain(p.plan)}</span></div>
                   {p.drafts > 1 && <div className="errs">Fixed compiler errors {p.drafts - 1} {p.drafts === 2 ? 'time' : 'times'} first</div>}
                   {judged ? (<>
                     <span className="saw">What the judge saw · frames 0–8 s</span>
-                    <p>{p.judge!.critique}</p>
-                    {!ok && p.judge!.fixes.length > 0 && <ul>{p.judge!.fixes.slice(0, 3).map((f, i) => <li key={i}>{f}</li>)}</ul>}
+                    <Prose text={p.judge!.critique} className="prose" />
+                    {!ok && p.judge!.fixes.length > 0 && (
+                      <>
+                        <span className="saw">What it asked for</span>
+                        <ul>{p.judge!.fixes.slice(0, 3).map((f, i) => <li key={i}><Inline text={f} /></li>)}</ul>
+                      </>
+                    )}
                   </>) : (
                     <span className="waiting">{current === p ? DOING[stage] : 'Not judged'}</span>
                   )}

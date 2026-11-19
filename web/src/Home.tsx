@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { keptCode, type Run, type RunSummary } from './agentRun';
 import { ShaderRenderer } from './renderer';
 import { duration, money } from './Runs';
+import { plain } from './prose';
 import { GITHUB_URL, TopBar } from './theme';
 
 // The runs the page features. If one is missing from the list, the page falls back to others.
@@ -17,7 +18,7 @@ const QUOTES: Record<string, Record<number, string>> = {
     2: 'This is a clear synthwave sunset. The striped yellow-to-pink sun sinks steadily across the frames.',
   },
 };
-const firstSentence = (s: string) => (s.match(/^.*?[.!?](\s|$)/)?.[0] ?? s).trim();
+const firstSentence = (s: string) => { const t = plain(s); return (t.match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim(); };
 
 // Picks from the gallery, listed here rather than fetched so the home page never waits for the server.
 const PICKS: { id: string; title: string; img: string; run?: string }[] = [

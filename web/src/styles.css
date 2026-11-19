@@ -49,7 +49,7 @@ button { font: 600 13px var(--sans); color: var(--on-acc); background: var(--acc
 button.secondary { background: transparent; color: var(--ink); border-color: var(--line2); }
 button.secondary:hover { border-color: var(--ink); }
 button:disabled { opacity: 0.55; cursor: default; }
-.icon-btn { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; background: transparent; color: var(--ink); border: 1px solid var(--line2); border-radius: 8px; }
+.icon-btn { display: grid; place-items: center; flex: none; width: 34px; height: 34px; padding: 0; background: transparent; color: var(--ink); border: 1px solid var(--line2); border-radius: 8px; }
 .icon-btn:hover { border-color: var(--ink); }
 select { font: 600 13px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--line2); border-radius: 8px; padding: 6px 8px; }
 
@@ -190,6 +190,10 @@ main.split { flex: 1; display: grid; grid-template-columns: minmax(0, var(--spli
 .pnote .tried b, .pnote .saw { display: block; font: 500 10px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); margin-bottom: 3px; }
 .pnote .tried span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .pnote p { margin: 0; font-size: 13px; line-height: 1.45; color: var(--ink2); }
+.pnote .prose { display: grid; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--ink2); }
+.pnote .prose ul { font-size: 13px; display: grid; gap: 4px; }
+.pnote strong { color: var(--ink); font-weight: 650; }
+.pnote code { font: 12px var(--mono); background: var(--raise); padding: 0 4px; border-radius: 4px; }
 .pnote ul { margin: 0; padding-left: 16px; font-size: 12px; color: var(--ink2); }
 .pnote .errs { font: 500 11.5px var(--mono); color: var(--danger); }
 .pnote .waiting { font: 500 11.5px var(--mono); color: var(--soft); }
@@ -217,7 +221,7 @@ main.split { flex: 1; display: grid; grid-template-columns: minmax(0, var(--spli
 .home main { max-width: 1280px; margin: 0 auto; padding: 0 32px 40px; }
 .top .gh { margin-left: auto; font: 500 13px var(--mono); color: var(--soft); text-decoration: none; }
 .top .gh:hover { color: var(--ink); }
-.home .top > button { padding: 8px 15px; }
+.home .top > button:not(.icon-btn) { padding: 8px 15px; }
 .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; padding: 56px 0 36px; }
 .hero .kick { font: 500 12px/1.3 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); margin-bottom: 18px; }
 .hero h1 { font: 800 clamp(36px, 4.2vw, 54px)/1.02 var(--sans); letter-spacing: -0.035em; margin: 0 0 20px; text-wrap: balance; }
@@ -294,6 +298,8 @@ main.split { flex: 1; display: grid; grid-template-columns: minmax(0, var(--spli
 .home-foot a:hover { color: var(--ink); }
 
 @media (max-width: 1000px) {
+  .top .gh, .home .nav a[href="#how"] { display: none; }
+  .home .top > button:not(.icon-btn) { margin-left: auto; }
   .hero { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-top: 32px; }
   .ways { grid-template-columns: minmax(0, 1fr); }
   .picks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -302,6 +308,9 @@ main.split { flex: 1; display: grid; grid-template-columns: minmax(0, var(--spli
   .pass-arrow span { transform: rotate(90deg); }
 }
 @media (max-width: 560px) {
+  /* On phones the links take their own row, so the buttons and the theme toggle stay together. */
+  .top { gap: 10px 12px; }
+  .top .nav { order: 10; flex-basis: 100%; }
   .home main { padding: 0 16px 32px; }
   .home-foot { padding: 20px 16px 32px; }
   .top .gh { display: none; }
