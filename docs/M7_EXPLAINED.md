@@ -159,7 +159,7 @@ table you want to keep into the README.
 
 - One judge model scoring its own family's shaders may be biased toward them; the human agreement
   numbers are the check on that.
-- Three frames can't show everything about motion (smoothness, looping).
+- Four frames (0, 2, 5 and 8 s) can't show everything about motion (smoothness, looping).
 - SwiftShader is slower than a GPU, so very heavy shaders can time out here but run fine in a browser.
 - `iMouse` is always zero in the benchmark, so interactive shaders aren't tested.
 
@@ -168,7 +168,8 @@ table you want to keep into the README.
 1. Run the benchmark for real on all 30 cases and add the table to the README.
 2. Draw about 20 sketches and run them.
 3. Rate about 100 results and report the agreement numbers.
-4. Record a short video of the agent working in a live room (done: `--room`).
+4. Record a short video of the agent working in a live room (the `--room` mode is built; the video
+   isn't recorded yet).
 
 ## Interview questions this prepares you for
 

@@ -1,6 +1,5 @@
-// Milestone 2 acceptance tests: titles, forking, gallery. These fail until M2 is built
-// (see docs/M2_GUIDE.md). They only use the public HTTP + WebSocket API, so you are free to
-// design the Store and RoomManager changes however you like.
+// Milestone 2 tests: titles, forking, gallery (walkthrough: docs/M2_EXPLAINED.md). They only use the
+// public HTTP + WebSocket API, so they don't depend on how the Store and RoomManager are built.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import * as Y from 'yjs';

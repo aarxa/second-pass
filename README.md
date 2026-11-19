@@ -8,8 +8,14 @@ until it's right.
 
 The name is a graphics pun: a render *pass*, and another try until the shader *passes*.
 
-**Live: https://shaderlab.onrender.com** (free tier: the first visit after ~15 idle minutes takes up to
-a minute to wake the server). **Watch the agent work: https://shaderlab.onrender.com/agent**
+**Live: https://second-pass.netlify.app** · **Watch the agent work: https://second-pass.netlify.app/agent**
+· **Gallery: https://second-pass.netlify.app/gallery**
+
+![Five shaders from the gallery: a black hole, a Mandelbrot dive, an aurora, a jellyfish and a synthwave sunset](docs/media/gallery-strip.jpg)
+
+Pages, runs and replays are static files on Netlify and open instantly. The editor and the gallery talk
+to a free server on Render that sleeps when idle, so the first visit after ~15 quiet minutes can take up
+to a minute to connect. How the pieces are hosted: [docs/HOSTING.md](docs/HOSTING.md).
 
 Measured on the live deployment (Render, Oregon; client in San Jose): an edit typed by one user shows
 up for another in **42 ms at p50, 114 ms at p95** over `wss://` (30 edits, one network round trip
@@ -62,12 +68,14 @@ Give it a request (text or a sketch) and it writes a shader, compiles it in head
 same wrapper as the editor, renders frames at 0, 2, 5 and 8 seconds, and has a vision model score them
 against the request. Below 7/10 it revises, seeing its own frames and the judge's critique. It can work
 in a live room as a collaborator (`--room`), typing each draft in while people watch or edit alongside.
-- **Replays** at [/agent](https://shaderlab.onrender.com/agent): saved runs played back step by step,
+- **Replays** at [/agent](https://second-pass.netlify.app/agent): saved runs played back step by step,
   served as static files so they cost nothing.
 - **Benchmark**: 30 requests in three modes (one shot, compile fixing, the full visual loop), each final
   shader scored the same way, plus a blind rating page to measure how far the judge agrees with a person.
-- **First runs**: a lava lamp went 6 → 7 in two rounds for $0.30 with Opus writing, and 5 → 7 for $0.05
-  with Haiku writing; a lotus went 6 → 8 for $0.53.
+- **Runs so far** (Opus 5.5 writing and judging): a black hole scored 8 on the first pass for $0.15, a
+  synthwave sunset went 6 → 8 for $0.19, a jellyfish scored 8 for $0.15, and a lotus went 6 → 8 for
+  $0.53. A cost experiment: a lava lamp went 6 → 7 for $0.30 with Opus writing, and 5 → 7 for $0.05 with
+  Haiku writing.
 
 Walkthrough of every decision: [docs/M7_EXPLAINED.md](docs/M7_EXPLAINED.md).
 
