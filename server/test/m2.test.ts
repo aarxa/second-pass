@@ -140,16 +140,23 @@ describe('M2: gallery', () => {
     return (await res.json()) as Page;
   }
 
-  /** Names a shader in its live document (as the title box does), then adds it to the gallery. */
-  async function add(id: string, title = 'Rings') {
+  /** Names a shader in its live document (as the title box does), adds it to the gallery, returns its owner key. */
+  async function add(id: string, title = 'Rings'): Promise<string> {
     const c = connect(id);
     await c.synced;
     c.meta.set('title', title);
     // The title reaches the server over the WebSocket; retry until the server's room has it.
-    await until(async () => (await api(`/api/shaders/${id}/gallery`, { method: 'PUT' })).status === 200);
+    let key = '';
+    await until(async () => {
+      const res = await api(`/api/shaders/${id}/gallery`, { method: 'PUT' });
+      if (res.status === 200) key = ((await res.json()) as { ownerKey: string }).ownerKey;
+      return res.status === 200;
+    });
     c.provider.destroy();
+    return key;
   }
-  const gallery = (method: 'PUT' | 'DELETE', id: string) => api(`/api/shaders/${id}/gallery`, { method });
+  const gallery = (method: 'PUT' | 'DELETE', id: string, key?: string) =>
+    api(`/api/shaders/${id}/gallery`, { method, headers: key ? { Authorization: `Bearer ${key}` } : {} });
 
   it('lists only shaders someone added, not every draft', async () => {
     const draft = await create();
@@ -175,10 +182,10 @@ describe('M2: gallery', () => {
     const a = await create();
     const b = await create();
     await add(a, 'First');
-    await add(b, 'Second');
+    const keyB = await add(b, 'Second');
     expect((await gallery('PUT', a)).status).toBe(200); // already in: stays where it was
     expect((await page('')).items.map((x) => x.id)).toEqual([b, a]);
-    const res = await gallery('DELETE', b);
+    const res = await gallery('DELETE', b, keyB);
     expect(res.status).toBe(200);
     expect(((await res.json()) as Item).publishedAt).toBeNull();
     expect((await page('')).items.map((x) => x.id)).toEqual([a]);

@@ -61,6 +61,14 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX shaders_gallery ON shaders (published_at DESC, id DESC) WHERE published_at IS NOT NULL;
       DROP INDEX IF EXISTS shaders_created_at_id;`,
   },
+  {
+    version: 6,
+    name: 'gallery owner key',
+    // There are no accounts. Whoever adds a shader to the gallery gets a random key, kept in their
+    // browser; only a hash of it is stored here. That key (or the site owner's admin key) is what
+    // takes the shader out of the gallery again.
+    sql: `ALTER TABLE shaders ADD COLUMN owner_key_hash TEXT;`,
+  },
 ];
 
 // Arbitrary constant: every server instance asks for the same advisory lock number.

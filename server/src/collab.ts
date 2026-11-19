@@ -58,6 +58,8 @@ class Room {
   readonly conns = new Map<WebSocket, Set<number>>();
   private persistTimer: NodeJS.Timeout | null = null;
   private dirty = false;
+  /** A shader in the gallery is locked: nobody's edits are applied (see setLocked). */
+  private locked = false;
 
   constructor(readonly id: string, private store: Store, private opts: RoomOptions) {
     this.awareness.setLocalState(null); // the server itself has no cursor
@@ -95,6 +97,19 @@ class Room {
   async load() {
     const state = await this.store.loadState(this.id);
     if (state) Y.applyUpdate(this.doc, state, 'load');
+    this.setLocked(!!(await this.store.meta(this.id))?.publishedAt);
+  }
+
+  /**
+   * Locks or unlocks the shader. While locked, edits from clients are dropped here, so the lock holds
+   * even against a client that ignores its read-only editor. The flag is also written into the
+   * document's meta map (by the server, which clients can't do while it is locked), so every open
+   * editor switches to read-only, or back, the moment it changes.
+   */
+  setLocked(on: boolean) {
+    this.locked = on;
+    const meta = this.doc.getMap('meta');
+    if (meta.get('locked') !== on) this.doc.transact(() => meta.set('locked', on), 'server');
   }
 
   addConnection(conn: WebSocket) {
@@ -119,6 +134,12 @@ class Room {
     const type = decoding.readVarUint(dec);
     metrics.messagesIn.inc({ type: type === MSG_SYNC ? 'sync' : type === MSG_AWARENESS ? 'awareness' : 'other' });
     if (type === MSG_SYNC) {
+      // Locked: a client may still ask for the document (sync step 1), but its step 2 and updates
+      // would change it, so they are dropped.
+      if (this.locked && decoding.peekVarUint(dec) !== syncProtocol.messageYjsSyncStep1) {
+        metrics.lockedWritesDropped.inc();
+        return;
+      }
       const enc = encoding.createEncoder();
       encoding.writeVarUint(enc, MSG_SYNC);
       syncProtocol.readSyncMessage(dec, enc, this.doc, conn); // origin = conn, so we don't echo it back
@@ -303,6 +324,14 @@ export class RoomManager {
    * debounced), or null if nobody has the shader open. Forking uses this so it never drops the
    * newest edits.
    */
+  /** Locks or unlocks a shader's live room, if anyone has it open; a room that loads later reads the database. */
+  async setLocked(id: string, on: boolean) {
+    const pending = this.rooms.get(id);
+    if (!pending) return;
+    const room = await pending;
+    if (!room.destroyed) room.setLocked(on);
+  }
+
   async snapshot(id: string): Promise<{ state: Uint8Array; title: string } | null> {
     const pending = this.rooms.get(id);
     if (!pending) return null;

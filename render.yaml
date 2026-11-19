@@ -19,6 +19,10 @@ services:
       # Protects GET /metrics; Render generates a random value (visible in the dashboard).
       - key: METRICS_TOKEN
         generateValue: true
+      # The site owner's key: takes any shader out of the gallery. Set it yourself in the dashboard
+      # (never commit it), then save the same value in your browser at /admin.
+      - key: ADMIN_TOKEN
+        sync: false
 
 databases:
   - name: shaderlab-db

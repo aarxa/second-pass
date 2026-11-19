@@ -1,4 +1,5 @@
 // HTTP API + WebSocket upgrade. Kept separate from index.ts so tests can start it on a random port.
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -42,6 +43,14 @@ function decodeCursor(raw: string): PageKey | null {
   }
 }
 
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+/** Compares secrets in constant time, so the time taken doesn't reveal how much of a guess matched. */
+function sameSecret(a: string, b: string): boolean {
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+const bearer = (header: string | undefined) => /^Bearer (\S+)$/.exec(header ?? '')?.[1] ?? null;
+
 /** Reads a shader's code and title: from the live room if someone has it open, else from storage. */
 async function readSource(rooms: RoomManager, store: Store, id: string) {
   const live = await rooms.snapshot(id);
@@ -72,6 +81,8 @@ export interface AppOptions {
   maxConnections?: number;
   /** Minimum time between stored thumbnail writes for one shader (default 10 s). */
   thumbnailIntervalMs?: number;
+  /** The site owner's key: it can take any shader out of the gallery. Default: ADMIN_TOKEN; unset = none. */
+  adminToken?: string;
   logger?: boolean;
 }
 
@@ -145,18 +156,40 @@ export async function buildApp(opts: AppOptions) {
   // Adding to and taking out of the gallery. Every shader starts as a draft that only people with its
   // link see; anyone who can edit it can add it. It needs a real title first, so the gallery isn't a
   // wall of "Untitled". The title is read from the live room when it is open (it may not be saved yet).
+  //
+  // Adding locks it: nobody can edit a gallery piece (they fork it instead). The response carries a
+  // one-time owner key, kept by the browser that added it; that key, or the admin key, takes it out
+  // again (and unlocks it). There are no accounts, so this is the whole notion of ownership.
+  const adminToken = opts.adminToken ?? process.env.ADMIN_TOKEN ?? '';
   app.put<{ Params: { id: string } }>('/api/shaders/:id/gallery', async (req, reply) => {
     const { id } = req.params;
     if (!ID_RE.test(id)) return reply.code(400).send({ error: 'bad id' });
     const source = await readSource(rooms, opts.store, id);
     if (!source) return reply.code(404).send({ error: 'not found' });
+    const current = await opts.store.meta(id);
+    if (current?.publishedAt) return current; // already in: no new key, nothing changes
     if (cleanTitle(source.title) === DEFAULT_TITLE) return reply.code(422).send({ error: 'give it a title first' });
-    return opts.store.setPublished(id, true);
+    const ownerKey = randomBytes(24).toString('base64url');
+    const meta = await opts.store.setPublished(id, true, sha256(ownerKey));
+    await rooms.setLocked(id, true);
+    return { ...meta, ownerKey };
   });
   app.delete<{ Params: { id: string } }>('/api/shaders/:id/gallery', async (req, reply) => {
-    if (!ID_RE.test(req.params.id)) return reply.code(400).send({ error: 'bad id' });
-    const meta = await opts.store.setPublished(req.params.id, false);
-    return meta ?? reply.code(404).send({ error: 'not found' });
+    const { id } = req.params;
+    if (!ID_RE.test(id)) return reply.code(400).send({ error: 'bad id' });
+    const current = await opts.store.meta(id);
+    if (!current) return reply.code(404).send({ error: 'not found' });
+    if (!current.publishedAt) return current;
+    const token = bearer(req.headers.authorization);
+    const hash = await opts.store.ownerKeyHash(id);
+    const isAdmin = !!adminToken && !!token && sameSecret(token, adminToken);
+    const isOwner = !!hash && !!token && sameSecret(sha256(token), hash);
+    if (!isAdmin && !isOwner) {
+      return reply.code(403).send({ error: 'only whoever added it to the gallery can take it out' });
+    }
+    const meta = await opts.store.setPublished(id, false);
+    await rooms.setLocked(id, false);
+    return meta;
   });
 
   app.get<{ Params: { id: string } }>('/api/shaders/:id', async (req, reply) => {
@@ -177,6 +210,9 @@ export async function buildApp(opts: AppOptions) {
     const { id } = req.params;
     if (!ID_RE.test(id)) return reply.code(400).send({ error: 'bad id' });
     if (!Buffer.isBuffer(req.body)) return reply.code(415).send({ error: `send ${THUMB_TYPES.join(', ')}` });
+    // A gallery piece is locked, picture included (one that has none yet may still get its first).
+    const current = await opts.store.meta(id);
+    if (current?.publishedAt && current.thumbnailAt) return reply.code(403).send({ error: 'gallery pieces are locked' });
     const checked = checkThumbnail(req.body);
     if ('error' in checked) return reply.code(400).send({ error: checked.error });
     // Checked after validation, so a rejected upload doesn't use up the shader's write slot.

@@ -53,9 +53,12 @@ export interface Store {
   list(limit: number, after?: PageKey | null): Promise<Page>;
   /**
    * Adds a shader to the gallery (keeping its original time if it is already there) or takes it
-   * out. Returns the updated metadata, or null if the shader doesn't exist.
+   * out. Adding records `ownerKeyHash` (if it has none yet); taking out clears it. Returns the
+   * updated metadata, or null if the shader doesn't exist.
    */
-  setPublished(id: string, on: boolean): Promise<ShaderMeta | null>;
+  setPublished(id: string, on: boolean, ownerKeyHash?: string): Promise<ShaderMeta | null>;
+  /** The hash of the key that may take the shader out of the gallery: null if none, undefined if no such shader. */
+  ownerKeyHash(id: string): Promise<string | null | undefined>;
   /** Insert or replace. Returns false if the shader doesn't exist. */
   saveThumbnail(id: string, image: Uint8Array, contentType: string): Promise<boolean>;
   loadThumbnail(id: string): Promise<Thumbnail | null>;
@@ -80,6 +83,7 @@ interface MemRow {
   meta: ShaderMeta;
   /** Gallery order: ISO time + sequence, so rows added in the same millisecond still have an order. */
   key: string | null;
+  ownerKeyHash: string | null;
 }
 
 export class MemoryStore implements Store {
@@ -93,6 +97,7 @@ export class MemoryStore implements Store {
     this.rows.set(id, {
       state: initialState,
       key: null,
+      ownerKeyHash: null,
       meta: { id, title: cleanTitle(opts.title), forkedFrom: opts.forkedFrom ?? null, createdAt: now, updatedAt: now, thumbnailAt: null, publishedAt: null },
     });
   }
@@ -125,18 +130,24 @@ export class MemoryStore implements Store {
       next: sorted.length > limit && last ? { t: last.key, id: last.meta.id } : null,
     };
   }
-  async setPublished(id: string, on: boolean) {
+  async setPublished(id: string, on: boolean, ownerKeyHash?: string) {
     const row = this.rows.get(id);
     if (!row) return null;
     if (on && row.key === null) {
       const now = new Date();
       row.key = `${now.toISOString()}#${String(this.seq++).padStart(9, '0')}`;
       row.meta = { ...row.meta, publishedAt: now };
+      row.ownerKeyHash ??= ownerKeyHash ?? null;
     } else if (!on) {
       row.key = null;
       row.meta = { ...row.meta, publishedAt: null };
+      row.ownerKeyHash = null;
     }
     return this.withThumb(row.meta);
+  }
+  async ownerKeyHash(id: string) {
+    const row = this.rows.get(id);
+    return row ? row.ownerKeyHash : undefined;
   }
   async saveThumbnail(id: string, image: Uint8Array, contentType: string) {
     if (!this.rows.has(id)) return false;
@@ -239,13 +250,20 @@ export class PgStore implements Store {
       next: r.rows.length > limit && last?.published_key ? { t: last.published_key, id: last.id } : null,
     };
   }
-  async setPublished(id: string, on: boolean) {
-    // COALESCE: adding a shader that is already in the gallery keeps its place.
+  async setPublished(id: string, on: boolean, ownerKeyHash?: string) {
+    // COALESCE: adding a shader that is already in the gallery keeps its place and its key.
     const r = await this.pool.query(
-      'UPDATE shaders SET published_at = CASE WHEN $2 THEN COALESCE(published_at, now()) ELSE NULL END WHERE id = $1',
-      [id, on],
+      `UPDATE shaders SET
+         published_at = CASE WHEN $2 THEN COALESCE(published_at, now()) ELSE NULL END,
+         owner_key_hash = CASE WHEN $2 THEN COALESCE(owner_key_hash, $3) ELSE NULL END
+       WHERE id = $1`,
+      [id, on, ownerKeyHash ?? null],
     );
     return (r.rowCount ?? 0) > 0 ? this.meta(id) : null;
+  }
+  async ownerKeyHash(id: string) {
+    const r = await this.pool.query<{ owner_key_hash: string | null }>('SELECT owner_key_hash FROM shaders WHERE id = $1', [id]);
+    return r.rows[0] ? r.rows[0].owner_key_hash : undefined;
   }
   async saveThumbnail(id: string, image: Uint8Array, contentType: string) {
     // INSERT ... SELECT FROM shaders: inserts nothing (rowCount 0) if the shader doesn't exist,
