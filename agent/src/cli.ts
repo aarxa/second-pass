@@ -32,6 +32,7 @@ async function main() {
   const renderer = await Renderer.open();
   const room = roomUrl ? await LiveRoom.join(roomUrl) : null;
   if (room) console.log(`Joined ${roomUrl}`);
+  console.log(dry ? 'Dry run with a fake model.' : 'Writing the first draft (a minute or two: the model plans before it writes)…');
   try {
     const trace = await runAgent({ id: 'cli', prompt, sketch }, { mode }, {
       model, renderer,
@@ -70,9 +71,9 @@ function statusFor(s: Step): string {
 function print(s: Step) {
   switch (s.type) {
     case 'draft': console.log(`\n[round ${s.round}] draft ($${s.usage.costUsd.toFixed(3)})\n  plan: ${s.plan.replace(/\s+/g, ' ').slice(0, 200)}`); break;
-    case 'compile': console.log(s.ok ? '  compiles' : `  does not compile:\n    ${s.errors.slice(0, 4).join('\n    ')}`); break;
+    case 'compile': console.log(s.ok ? '  compiles, rendering and judging…' : `  does not compile, fixing:\n    ${s.errors.slice(0, 4).join('\n    ')}`); break;
     case 'render': console.log(`  rendered in ${s.ms} ms (contrast ${s.stats.spread.toFixed(3)}, motion ${s.stats.motion.toFixed(3)})`); break;
-    case 'judge': console.log(`  judge: ${s.verdict.score}/10. ${s.verdict.critique}`); break;
+    case 'judge': console.log(`  judge: ${s.verdict.score}/10. ${s.verdict.critique}${s.verdict.score < 7 ? '\n  revising…' : ''}`); break;
     case 'stop': break;
   }
 }

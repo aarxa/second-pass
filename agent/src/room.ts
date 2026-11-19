@@ -95,7 +95,10 @@ export class LiveRoom {
   async leave() {
     this.status('done');
     await sleep(300); // let the last presence update reach the others
+    // provider.destroy() leaves the awareness timer running, which keeps Node from exiting.
+    this.provider.awareness.destroy();
     this.provider.destroy();
+    this.text.doc?.destroy();
   }
 
   private cursor(index: number) {
