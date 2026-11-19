@@ -49,6 +49,18 @@ export const MIGRATIONS: Migration[] = [
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );`,
   },
+  {
+    version: 5,
+    name: 'gallery lists only shaders someone added',
+    // "New shader" has to create a row straight away (the live room needs one to exist), so listing
+    // every row filled the gallery with blank "Untitled" drafts. A shader now shows up only once
+    // someone adds it: published_at is when, and it is also the gallery's order. The partial index
+    // holds only those rows, so drafts cost the gallery nothing.
+    sql: `
+      ALTER TABLE shaders ADD COLUMN published_at TIMESTAMPTZ;
+      CREATE INDEX shaders_gallery ON shaders (published_at DESC, id DESC) WHERE published_at IS NOT NULL;
+      DROP INDEX IF EXISTS shaders_created_at_id;`,
+  },
 ];
 
 // Arbitrary constant: every server instance asks for the same advisory lock number.

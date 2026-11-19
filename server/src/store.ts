@@ -12,6 +12,8 @@ export interface ShaderMeta {
   updatedAt: Date;
   /** When the thumbnail was last replaced, or null if there is none yet. */
   thumbnailAt: Date | null;
+  /** When it was added to the gallery, or null if it isn't in it (a draft, reachable by its link). */
+  publishedAt: Date | null;
 }
 
 export interface Thumbnail {
@@ -26,8 +28,8 @@ export interface CreateOptions {
 }
 
 /**
- * Position in the gallery order (newest first). `t` is the row's created_at exactly as the store
- * keeps it: for Postgres that is the timestamp's text form with full microsecond precision. A JS Date
+ * Position in the gallery order (most recently added first). `t` is the row's published_at exactly
+ * as the store keeps it: for Postgres that is the timestamp's text form with full microsecond precision. A JS Date
  * only has milliseconds, so a cursor built from one would sit slightly *before* the real value and the
  * next page would repeat that row.
  */
@@ -47,8 +49,13 @@ export interface Store {
   loadState(id: string): Promise<Uint8Array | null>;
   saveState(id: string, state: Uint8Array, title: string): Promise<void>;
   meta(id: string): Promise<ShaderMeta | null>;
-  /** Newest first, starting after `after` (exclusive). */
+  /** The gallery: shaders someone added, most recently added first, starting after `after` (exclusive). */
   list(limit: number, after?: PageKey | null): Promise<Page>;
+  /**
+   * Adds a shader to the gallery (keeping its original time if it is already there) or takes it
+   * out. Returns the updated metadata, or null if the shader doesn't exist.
+   */
+  setPublished(id: string, on: boolean): Promise<ShaderMeta | null>;
   /** Insert or replace. Returns false if the shader doesn't exist. */
   saveThumbnail(id: string, image: Uint8Array, contentType: string): Promise<boolean>;
   loadThumbnail(id: string): Promise<Thumbnail | null>;
@@ -71,7 +78,8 @@ export function cleanTitle(value: unknown): string {
 interface MemRow {
   state: Uint8Array;
   meta: ShaderMeta;
-  key: string; // ISO time + sequence, so rows created in the same millisecond still have an order
+  /** Gallery order: ISO time + sequence, so rows added in the same millisecond still have an order. */
+  key: string | null;
 }
 
 export class MemoryStore implements Store {
@@ -82,11 +90,10 @@ export class MemoryStore implements Store {
 
   async create(id: string, initialState: Uint8Array, opts: CreateOptions = {}) {
     const now = new Date();
-    const key = `${now.toISOString()}#${String(this.seq++).padStart(9, '0')}`;
     this.rows.set(id, {
       state: initialState,
-      key,
-      meta: { id, title: cleanTitle(opts.title), forkedFrom: opts.forkedFrom ?? null, createdAt: now, updatedAt: now, thumbnailAt: null },
+      key: null,
+      meta: { id, title: cleanTitle(opts.title), forkedFrom: opts.forkedFrom ?? null, createdAt: now, updatedAt: now, thumbnailAt: null, publishedAt: null },
     });
   }
   async exists(id: string) {
@@ -106,9 +113,10 @@ export class MemoryStore implements Store {
     return row ? this.withThumb(row.meta) : null;
   }
   async list(limit: number, after: PageKey | null = null): Promise<Page> {
-    const before = (r: MemRow, k: PageKey) => r.key < k.t || (r.key === k.t && r.meta.id < k.id);
+    const before = (key: string, id: string, k: PageKey) => key < k.t || (key === k.t && id < k.id);
     const sorted = [...this.rows.values()]
-      .filter((r) => !after || before(r, after))
+      .flatMap((r) => (r.key === null ? [] : [{ key: r.key, meta: r.meta }]))
+      .filter((r) => !after || before(r.key, r.meta.id, after))
       .sort((a, b) => (a.key === b.key ? (a.meta.id < b.meta.id ? 1 : -1) : a.key < b.key ? 1 : -1));
     const page = sorted.slice(0, limit);
     const last = page[page.length - 1];
@@ -116,6 +124,19 @@ export class MemoryStore implements Store {
       items: page.map((r) => this.withThumb(r.meta)),
       next: sorted.length > limit && last ? { t: last.key, id: last.meta.id } : null,
     };
+  }
+  async setPublished(id: string, on: boolean) {
+    const row = this.rows.get(id);
+    if (!row) return null;
+    if (on && row.key === null) {
+      const now = new Date();
+      row.key = `${now.toISOString()}#${String(this.seq++).padStart(9, '0')}`;
+      row.meta = { ...row.meta, publishedAt: now };
+    } else if (!on) {
+      row.key = null;
+      row.meta = { ...row.meta, publishedAt: null };
+    }
+    return this.withThumb(row.meta);
   }
   async saveThumbnail(id: string, image: Uint8Array, contentType: string) {
     if (!this.rows.has(id)) return false;
@@ -140,12 +161,13 @@ interface PgRow {
   forked_from: string | null;
   created_at: Date;
   updated_at: Date;
-  created_key: string;
+  published_at: Date | null;
+  published_key: string | null;
   thumbnail_at: Date | null;
 }
 // LEFT JOIN on the thumbnails primary key: one index lookup per row, and the image bytes are not read.
 const META_COLUMNS =
-  's.id, s.title, s.forked_from, s.created_at, s.updated_at, s.created_at::text AS created_key, t.updated_at AS thumbnail_at';
+  's.id, s.title, s.forked_from, s.created_at, s.updated_at, s.published_at, s.published_at::text AS published_key, t.updated_at AS thumbnail_at';
 const META_FROM = 'shaders s LEFT JOIN thumbnails t ON t.shader_id = s.id';
 const toMeta = (r: PgRow): ShaderMeta => ({
   id: r.id,
@@ -154,6 +176,7 @@ const toMeta = (r: PgRow): ShaderMeta => ({
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   thumbnailAt: r.thumbnail_at,
+  publishedAt: r.published_at,
 });
 
 export class PgStore implements Store {
@@ -195,24 +218,34 @@ export class PgStore implements Store {
   async list(limit: number, after: PageKey | null = null): Promise<Page> {
     // Fetch one extra row to learn whether another page exists. Two separate queries rather than
     // "WHERE $1 IS NULL OR ...": the OR form can stop Postgres from using the index.
-    // The row comparison (created_at, id) < (t, id) is exactly "comes after the cursor" in
-    // ORDER BY created_at DESC, id DESC, and the composite index serves it directly.
+    // The row comparison (published_at, id) < (t, id) is exactly "comes after the cursor" in
+    // ORDER BY published_at DESC, id DESC, and the partial index (only gallery rows) serves it directly.
     const r = after
       ? await this.pool.query<PgRow>(
-          `SELECT ${META_COLUMNS} FROM ${META_FROM} WHERE (s.created_at, s.id) < ($1::timestamptz, $2)
-           ORDER BY s.created_at DESC, s.id DESC LIMIT $3`,
+          `SELECT ${META_COLUMNS} FROM ${META_FROM}
+           WHERE s.published_at IS NOT NULL AND (s.published_at, s.id) < ($1::timestamptz, $2)
+           ORDER BY s.published_at DESC, s.id DESC LIMIT $3`,
           [after.t, after.id, limit + 1],
         )
       : await this.pool.query<PgRow>(
-          `SELECT ${META_COLUMNS} FROM ${META_FROM} ORDER BY s.created_at DESC, s.id DESC LIMIT $1`,
+          `SELECT ${META_COLUMNS} FROM ${META_FROM} WHERE s.published_at IS NOT NULL
+           ORDER BY s.published_at DESC, s.id DESC LIMIT $1`,
           [limit + 1],
         );
     const rows = r.rows.slice(0, limit);
     const last = rows[rows.length - 1];
     return {
       items: rows.map(toMeta),
-      next: r.rows.length > limit && last ? { t: last.created_key, id: last.id } : null,
+      next: r.rows.length > limit && last?.published_key ? { t: last.published_key, id: last.id } : null,
     };
+  }
+  async setPublished(id: string, on: boolean) {
+    // COALESCE: adding a shader that is already in the gallery keeps its place.
+    const r = await this.pool.query(
+      'UPDATE shaders SET published_at = CASE WHEN $2 THEN COALESCE(published_at, now()) ELSE NULL END WHERE id = $1',
+      [id, on],
+    );
+    return (r.rowCount ?? 0) > 0 ? this.meta(id) : null;
   }
   async saveThumbnail(id: string, image: Uint8Array, contentType: string) {
     // INSERT ... SELECT FROM shaders: inserts nothing (rowCount 0) if the shader doesn't exist,

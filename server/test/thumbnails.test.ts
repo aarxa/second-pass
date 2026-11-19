@@ -201,14 +201,17 @@ describe.each(stores)('thumbnail API (%s)', (_name, makeStore) => {
     const id = await create();
     const image = png(64, 36, [1, 2, 3]);
     await put(id, image);
-    const page = (await (await fetch(`${base}/api/shaders?limit=50`)).json()) as {
-      items: Array<{ id: string; thumbnailAt: string | null }>;
-    };
-    expect(page.items.find((i) => i.id === id)?.thumbnailAt).toBeTruthy();
 
     const fork = ((await (await fetch(`${base}/api/shaders/${id}/fork`, { method: 'POST' })).json()) as { id: string }).id;
     expect((await meta(fork)).thumbnailAt).toBeTruthy();
     const res = await fetch(`${base}/api/shaders/${fork}/thumbnail`);
     expect(Buffer.from(await res.arrayBuffer()).equals(image)).toBe(true);
+
+    // The fork is named "Fork of …", so it can go straight into the gallery, which lists its picture.
+    expect((await fetch(`${base}/api/shaders/${fork}/gallery`, { method: 'PUT' })).status).toBe(200);
+    const page = (await (await fetch(`${base}/api/shaders?limit=50`)).json()) as {
+      items: Array<{ id: string; thumbnailAt: string | null }>;
+    };
+    expect(page.items.find((i) => i.id === fork)?.thumbnailAt).toBeTruthy();
   });
 });
