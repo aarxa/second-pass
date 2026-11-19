@@ -46,3 +46,14 @@ prepares you for. Write the code yourself and get each PR reviewed before mergin
 - Live on Render from `render.yaml` (Docker web service + managed Postgres), auto-deploys on push to main.
 - Render's free Postgres expires 30 days after creation (around 2026-12-09): move `DATABASE_URL` to
   Neon's free tier or a paid Render database before then.
+
+## M7. Shader agent (in progress; see docs/M7_EXPLAINED.md)
+- An agent that writes shaders from text or a sketch, compiles and renders them in headless Chrome,
+  has a vision model judge the frames, and revises until they pass (`agent/`).
+- A benchmark of 30 text cases (plus your sketches) in three modes (one shot, compile fixing, full
+  visual loop), each final shader scored the same way.
+- A blind rating page and judge-vs-human agreement (Spearman, Cohen's kappa).
+- Done when: a full benchmark table in the README, about 20 sketch cases, agreement measured on about
+  100 of your ratings, and the agent typing into a live room.
+- Interview prep: workflow vs. agent, evaluating generative output, ablations, LLM-as-judge bias,
+  cost control in loops, sandboxing generated code.
