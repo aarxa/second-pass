@@ -12,7 +12,7 @@ import { lineDiff, planComment } from '../../web/src/agentText.ts';
 
 export { lineDiff, planComment };
 
-const COLOR = '#b9a4ff';
+const COLOR = '#f4b740'; // the app's amber accent
 
 export interface TypingOptions {
   charsPerTick?: number;
@@ -94,31 +94,41 @@ export class LiveRoom {
     if (untouched) this.lastWritten = this.code; // the comment is the agent's own edit, not a person's
   }
 
-  /** Types `next` into the room as a line diff, moving the agent's cursor as it goes. */
+  /**
+   * Types `next` into the room as a line diff, moving the agent's cursor as it goes. The plan comment
+   * (if one is showing) stays on top while the code is typed beneath it, then is removed. Each new
+   * line is opened before it's typed, so a half-typed line never runs into the line after it.
+   */
   async type(next: string) {
     if (this.narrateTimer) { clearTimeout(this.narrateTimer); this.narrateTimer = null; }
-    this.pendingPlan = null; // the draft is here: the plan comment is replaced by the code below
+    this.pendingPlan = null;
+    const top = this.code.startsWith(this.header) ? this.header.length : 0;
     this.header = '';
-    const from = withNewline(this.code).split('\n').slice(0, -1);
+    const from = withNewline(this.code.slice(top)).split('\n').slice(0, -1);
     const to = withNewline(next).split('\n').slice(0, -1);
-    let pos = 0; // character index in the shared text
+    let pos = top; // character index in the shared text
     for (const op of lineDiff(from, to)) {
       if (op.kind === 'keep') {
-        pos += op.line.length + 1;
+        // (the last line may have no newline of its own, so never step past the end of the text)
+        pos = Math.min(pos + op.line.length + 1, this.text.length);
       } else if (op.kind === 'del') {
         this.text.delete(pos, Math.min(op.line.length + 1, this.text.length - pos));
         this.cursor(pos);
         await sleep(this.typing.tickMs);
       } else {
-        const line = op.line + '\n';
-        for (let i = 0; i < line.length; i += this.typing.charsPerTick) {
-          const chunk = line.slice(i, i + this.typing.charsPerTick);
-          this.text.insert(pos, chunk);
-          pos += chunk.length;
-          this.cursor(pos);
+        this.text.insert(pos, '\n');
+        for (let i = 0; i < op.line.length; i += this.typing.charsPerTick) {
+          const chunk = op.line.slice(i, i + this.typing.charsPerTick);
+          this.text.insert(pos + i, chunk);
+          this.cursor(pos + i + chunk.length);
           await sleep(this.typing.tickMs);
         }
+        pos += op.line.length + 1;
       }
+    }
+    if (top) {
+      await sleep(this.typing.tickMs * 10);
+      this.text.delete(0, Math.min(top, this.text.length));
     }
     // The diff works on whole lines; make the result exactly `next` (e.g. its final newline).
     if (this.code !== next) {
