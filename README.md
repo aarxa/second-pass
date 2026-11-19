@@ -49,7 +49,8 @@ Reproduce: `docker compose -f docker-compose.yml -f docker-compose.load.yml up -
   no "someone else is editing" conflicts. Presence shows who is in the room and where their cursor is.
 - **Persistence**: documents are stored in Postgres as compact CRDT snapshots and survive restarts.
 - **Titles, forks, gallery**: titles sync live; Fork copies the current code (including unsaved live
-  edits) into a new shader linked to its original; `/gallery` lists every shader newest first with
+  edits) into a new shader linked to its original; `/gallery` lists the shaders someone named and
+  added (new ones are drafts, seen only by people with the link), most recently added first, with
   cursor pagination. Schema changes go through numbered migrations. Walkthrough: docs/M2_EXPLAINED.md.
 - **Thumbnails**: the editor of whoever is typing captures its live preview (320×180 WebP, JPEG on Safari)
   a few seconds after a successful compile and uploads it. The server checks the real format from the
@@ -79,7 +80,7 @@ Walkthrough of every decision: [docs/M7_EXPLAINED.md](docs/M7_EXPLAINED.md).
  │   └─► ShaderRenderer (WebGL2) │  awareness    │  • relays updates, persists  │ snapshots  timestamps)
  └───────────────────────────────┘   protocol    │  • unloads idle rooms        │      └──────────┘
           HTTP: POST /api/shaders, GET /api/shaders (gallery), GET /api/shaders/:id,
-                POST /api/shaders/:id/fork,
+                POST /api/shaders/:id/fork, PUT|DELETE /api/shaders/:id/gallery,
                 PUT|GET /api/shaders/:id/thumbnail, GET /api/health
 ```
 - `server/src/collab.ts`: the sync server. Implements the Yjs sync + awareness wire protocol directly

@@ -52,16 +52,46 @@ describe.skipIf(!url)('PgStore', () => {
     expect(await migrate(pool)).toEqual([]);
   });
 
+  it('lists only shaders in the gallery, and setPublished adds and removes them', async () => {
+    const id = newShaderId();
+    await store.create(id, new Uint8Array([0]), { title: 'Gallery test' });
+    try {
+      const inGallery = async () => {
+        const seen: string[] = [];
+        let after: PageKey | null = null;
+        do {
+          const page = await store.list(50, after);
+          seen.push(...page.items.map((x) => x.id));
+          after = page.next;
+        } while (after);
+        return seen.includes(id);
+      };
+      expect(await inGallery()).toBe(false);
+      const added = await store.setPublished(id, true);
+      expect(added?.publishedAt).toBeInstanceOf(Date);
+      expect(await inGallery()).toBe(true);
+      // Adding again keeps the original time (its place in the gallery).
+      expect((await store.setPublished(id, true))?.publishedAt?.getTime()).toBe(added!.publishedAt!.getTime());
+      expect((await store.setPublished(id, false))?.publishedAt).toBeNull();
+      expect(await inGallery()).toBe(false);
+      expect(await store.setPublished(newShaderId(), true)).toBeNull();
+    } finally {
+      await pool.query('DELETE FROM shaders WHERE id = $1', [id]);
+    }
+  });
+
   it('paginates without repeats or gaps when rows share the exact same timestamp', async () => {
-    // Five rows with an identical microsecond timestamp far in the future (so they sort first),
-    // plus one a microsecond earlier. Only the id tiebreak and a full-precision cursor keep pages
-    // from repeating or skipping rows here.
+    // Five gallery rows with an identical microsecond timestamp far in the future (so they sort
+    // first), plus one a microsecond earlier and a draft. Only the id tiebreak and a full-precision
+    // cursor keep pages from repeating or skipping rows here; the draft must never appear.
     const same = '2100-01-01 00:00:00.123456+00';
     const ids = Array.from({ length: 5 }, () => newShaderId());
     const older = newShaderId();
+    const draft = newShaderId();
     for (const id of ids)
-      await pool.query(`INSERT INTO shaders (id, ydoc_state, created_at) VALUES ($1, '\\x00', $2)`, [id, same]);
-    await pool.query(`INSERT INTO shaders (id, ydoc_state, created_at) VALUES ($1, '\\x00', '2100-01-01 00:00:00.123455+00')`, [older]);
+      await pool.query(`INSERT INTO shaders (id, ydoc_state, published_at) VALUES ($1, '\\x00', $2)`, [id, same]);
+    await pool.query(`INSERT INTO shaders (id, ydoc_state, published_at) VALUES ($1, '\\x00', '2100-01-01 00:00:00.123455+00')`, [older]);
+    await pool.query(`INSERT INTO shaders (id, ydoc_state, created_at) VALUES ($1, '\\x00', '2100-01-02')`, [draft]);
     try {
       const seen: string[] = [];
       let after: PageKey | null = null;
@@ -73,7 +103,7 @@ describe.skipIf(!url)('PgStore', () => {
       const expected = [...ids].sort().reverse().concat(older); // id DESC within the tie, then the older row
       expect(seen).toEqual(expected);
     } finally {
-      await pool.query('DELETE FROM shaders WHERE id = ANY($1)', [[...ids, older]]);
+      await pool.query('DELETE FROM shaders WHERE id = ANY($1)', [[...ids, older, draft]]);
     }
   });
 
@@ -82,12 +112,13 @@ describe.skipIf(!url)('PgStore', () => {
     await pool.query('SET enable_seqscan = off');
     const plan = (
       await pool.query(
-        `EXPLAIN SELECT id FROM shaders WHERE (created_at, id) < ('2100-01-01'::timestamptz, 'zzzzzzzzzz')
-         ORDER BY created_at DESC, id DESC LIMIT 21`,
+        `EXPLAIN SELECT id FROM shaders
+         WHERE published_at IS NOT NULL AND (published_at, id) < ('2100-01-01'::timestamptz, 'zzzzzzzzzz')
+         ORDER BY published_at DESC, id DESC LIMIT 21`,
       )
     ).rows.map((r: { 'QUERY PLAN': string }) => r['QUERY PLAN']).join('\n');
     await pool.query('RESET enable_seqscan');
-    expect(plan).toContain('shaders_created_at_id');
+    expect(plan).toContain('shaders_gallery');
     expect(plan).not.toMatch(/\bSort\b/);
   });
 });

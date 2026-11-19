@@ -56,7 +56,7 @@ async function until(cond: () => boolean | Promise<boolean>, ms = 3000) {
   }
 }
 
-interface Item { id: string; title: string; forkedFrom: string | null }
+interface Item { id: string; title: string; forkedFrom: string | null; publishedAt: string | null }
 interface Page { items: Item[]; nextCursor: string | null }
 
 describe('M2: titles', () => {
@@ -141,11 +141,66 @@ describe('M2: gallery', () => {
     return (await res.json()) as Page;
   }
 
-  it('lists shaders newest first with cursor pagination', async () => {
+  /** Names a shader in its live document (as the title box does), then adds it to the gallery. */
+  async function add(id: string, title = 'Rings') {
+    const c = connect(id);
+    await c.synced;
+    c.meta.set('title', title);
+    // The title reaches the server over the WebSocket; retry until the server's room has it.
+    await until(async () => (await api(`/api/shaders/${id}/gallery`, { method: 'PUT' })).status === 200);
+    c.provider.destroy();
+  }
+  const gallery = (method: 'PUT' | 'DELETE', id: string) => api(`/api/shaders/${id}/gallery`, { method });
+
+  it('lists only shaders someone added, not every draft', async () => {
+    const draft = await create();
+    const added = await create();
+    await add(added, 'Lotus');
+    const ids = (await page('')).items.map((x) => x.id);
+    expect(ids).toEqual([added]);
+    expect(ids).not.toContain(draft);
+    const meta = (await (await api(`/api/shaders/${draft}`)).json()) as Item;
+    expect(meta.publishedAt).toBeNull(); // still reachable by its link
+  });
+
+  it('needs a real title before a shader can be added', async () => {
+    const id = await create();
+    const res = await gallery('PUT', id);
+    expect(res.status).toBe(422);
+    expect((await page('')).items).toHaveLength(0);
+    expect((await gallery('PUT', 'zzzzzzzzzz')).status).toBe(404);
+    expect((await gallery('PUT', 'bad id!')).status).toBe(400);
+  });
+
+  it('takes a shader out again, and adding it twice keeps its place', async () => {
+    const a = await create();
+    const b = await create();
+    await add(a, 'First');
+    await add(b, 'Second');
+    expect((await gallery('PUT', a)).status).toBe(200); // already in: stays where it was
+    expect((await page('')).items.map((x) => x.id)).toEqual([b, a]);
+    const res = await gallery('DELETE', b);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Item).publishedAt).toBeNull();
+    expect((await page('')).items.map((x) => x.id)).toEqual([a]);
+    expect((await gallery('DELETE', 'zzzzzzzzzz')).status).toBe(404);
+  });
+
+  it('a fork starts as a draft, even when its original is in the gallery', async () => {
+    const id = await create();
+    await add(id, 'Original');
+    const res = await api(`/api/shaders/${id}/fork`, { method: 'POST' });
+    const fork = ((await res.json()) as { id: string }).id;
+    expect((await page('')).items.map((x) => x.id)).toEqual([id]);
+    expect((await gallery('PUT', fork)).status).toBe(200); // "Fork of Original" is a real title
+  });
+
+  it('lists shaders most recently added first with cursor pagination', async () => {
     const ids: string[] = [];
     for (let i = 0; i < 5; i++) {
-      ids.push(await create());
-      await new Promise((r) => setTimeout(r, 5)); // distinct created_at
+      const id = await create();
+      await add(id, `Shader ${i}`);
+      ids.push(id);
     }
     const p1 = await page('?limit=2');
     expect(p1.items.map((x) => x.id)).toEqual([ids[4], ids[3]]);
@@ -157,13 +212,10 @@ describe('M2: gallery', () => {
     expect(p3.nextCursor).toBeNull();
   });
 
-  it('does not repeat items when a shader is created between page loads (why OFFSET fails)', async () => {
-    for (let i = 0; i < 4; i++) {
-      await create();
-      await new Promise((r) => setTimeout(r, 5));
-    }
+  it('does not repeat items when a shader is added between page loads (why OFFSET fails)', async () => {
+    for (let i = 0; i < 4; i++) await add(await create(), `Shader ${i}`);
     const p1 = await page('?limit=2');
-    await create(); // a new shader appears at the top while the user is reading page 1
+    await add(await create(), 'Newer'); // a new shader appears at the top while the user is reading page 1
     const p2 = await page(`?limit=2&cursor=${encodeURIComponent(p1.nextCursor!)}`);
     const seen = new Set(p1.items.map((x) => x.id));
     for (const item of p2.items) expect(seen.has(item.id)).toBe(false);
@@ -171,7 +223,7 @@ describe('M2: gallery', () => {
   });
 
   it('caps the page size and rejects a garbage cursor', async () => {
-    for (let i = 0; i < 3; i++) await create();
+    for (let i = 0; i < 3; i++) await add(await create(), `Shader ${i}`);
     expect((await page('?limit=1000')).items.length).toBeLessThanOrEqual(50);
     expect((await api('/api/shaders?cursor=not-a-real-cursor')).status).toBe(400);
   });
