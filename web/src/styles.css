@@ -365,19 +365,22 @@ button.small { padding: 4px 10px; font-size: 12px; }
   .run-row img { width: 72px; }
 }
 
-/* home: from a sketch */
-.sketch-pair { display: grid; grid-template-columns: minmax(0, 0.8fr) 120px minmax(0, 1.2fr); align-items: center; gap: 8px; }
-.sketch-pair figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
-.sketch-pair figcaption { font: 500 11.5px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); }
-.sketch-paper img { width: 100%; max-width: 460px; border-radius: 3px; border: 8px solid var(--panel); box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.45); transform: rotate(-2deg); }
+/* home: from a sketch (the painting and its shader, side by side, the same size) */
+.sketch-pair { display: grid; grid-template-columns: minmax(0, 1fr) 74px minmax(0, 1fr); align-items: center; gap: 6px; max-width: 980px; }
+.sketch-pair figure { margin: 0; display: grid; gap: 8px; justify-items: center; min-width: 0; }
+.sketch-pair figcaption { font: 500 11px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); text-align: center; }
+.sketch-paper img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 3px; border: 6px solid var(--panel); box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.45); transform: rotate(-1.5deg); }
 .sketch-live { width: 100%; }
-.sketch-live .film { width: 100%; padding: 18px 12px; border-radius: 10px; box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.5); }
-.sketch-arrow { display: grid; justify-items: center; gap: 6px; text-align: center; font: 500 12px/1.4 var(--mono); color: var(--soft); }
-.sketch-arrow span { font: 400 32px/1 var(--sans); color: var(--ink); }
-@media (max-width: 1000px) {
-  .sketch-pair { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .sketch-arrow span { transform: rotate(90deg); }
-  .sketch-paper img { max-width: 360px; }
+.sketch-live .film { width: 100%; padding: 12px 8px; border-radius: 8px; }
+.sketch-arrow { display: grid; justify-items: center; gap: 4px; text-align: center; font: 500 11px/1.35 var(--mono); color: var(--soft); }
+.sketch-arrow span { font: 400 26px/1 var(--sans); color: var(--ink); }
+@media (max-width: 560px) {
+  .sketch-pair { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); gap: 4px; }
+  .sketch-arrow { font-size: 0; }
+  .sketch-arrow span { font-size: 20px; }
+  .sketch-paper img { border-width: 4px; }
+  .sketch-live .film { padding: 9px 5px; }
+  .sketch-pair figcaption { font-size: 9.5px; letter-spacing: 0.04em; }
 }
 
 /* /admin */
