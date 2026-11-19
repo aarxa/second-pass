@@ -1,6 +1,6 @@
 // /agent: saved runs of the shader agent, each one replayable. The list is a static file
 // (web/public/agent-runs/index.json, written by `npm run export-run` in agent/), so it costs nothing.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { briefText, type RunSummary } from './agentRun';
 import { TopBar } from './theme';
@@ -47,39 +47,17 @@ export function Runs() {
   );
 }
 
-/**
- * One run on the list. Hovering (or focusing) it plays its reel like a flipbook: the picture steps
- * through the final pass's frames at 0, 2, 5 and 8 seconds, and the strip below marks the one shown.
- */
+/** One run on the list: its picture (with the sketch, for a sketch run), the final pass's frames, the scores. */
 function RunCard({ r }: { r: RunSummary }) {
-  const [frame, setFrame] = useState(-1); // -1: the still picture
-  const timer = useRef(0);
   const frames = r.finalFrames ?? [];
-  const play = () => {
-    if (frames.length === 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    window.clearInterval(timer.current);
-    let k = 0;
-    setFrame(0);
-    timer.current = window.setInterval(() => {
-      k = (k + 1) % frames.length;
-      setFrame(k);
-    }, 450);
-  };
-  const stop = () => {
-    window.clearInterval(timer.current);
-    setFrame(-1);
-  };
-  useEffect(() => () => window.clearInterval(timer.current), []);
   return (
-    <Link to={`/agent/${r.id}`} className="run-card" onPointerEnter={play} onPointerLeave={stop} onFocus={play} onBlur={stop}>
+    <Link to={`/agent/${r.id}`} className="run-card">
       <div className="pic">
         <img src={`/agent-runs/${r.thumb}`} alt="" loading="lazy" />
-        {frames.map((f, i) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" className={`flip${i === frame ? ' on' : ''}`} />)}
-        {frame >= 0 && <span className="flip-t">{[0, 2, 5, 8][frame] ?? ''} s</span>}
         {r.sketch && <img className="sketch-inset" src={`/agent-runs/${r.sketch}`} alt="The sketch it was given" loading="lazy" />}
       </div>
       {frames.length > 0 && (
-        <div className="film"><div className="mini-reel">{frames.map((f, i) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" className={i === frame ? 'on' : ''} />)}</div></div>
+        <div className="film"><div className="mini-reel">{frames.map((f) => <img key={f} src={`/agent-runs/${f}`} alt="" loading="lazy" />)}</div></div>
       )}
       <div className="t">{r.title}</div>
       <div className="q">{r.sketch && <span className="from-sketch">From a sketch · </span>}“{briefText(r.request)}”</div>
