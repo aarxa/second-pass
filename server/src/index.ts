@@ -21,6 +21,9 @@ const shutdown = async () => {
   process.exit(0);
 };
 process.on('SIGINT', shutdown);
+// A last line of defence: log a stray failed promise instead of letting Node exit on it. Saving and
+// loading rooms handle their own failures; this is for anything missed.
+process.on('unhandledRejection', (e) => app.log.error({ err: e }, 'unhandled rejection'));
 process.on('SIGTERM', shutdown);
 
 await app.listen({ port, host: '0.0.0.0' });

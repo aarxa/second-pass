@@ -420,8 +420,9 @@ export function Editor() {
   const fork = async () => {
     setForking(true);
     try {
-      const res = await fetch(`/api/shaders/${id}/fork`, { method: 'POST' });
-      if (res.ok) navigate(`/s/${((await res.json()) as { id: string }).id}`);
+      const res = await fetch(`/api/shaders/${id}/fork`, { method: 'POST' }).catch(() => null);
+      if (res?.ok) navigate(`/s/${((await res.json()) as { id: string }).id}`);
+      else setGalleryError(res?.status === 429 ? "That's a lot of new shaders from here in the last hour. Try forking again a little later." : "Couldn't fork it right now. Try again in a moment.");
     } finally {
       setForking(false);
     }

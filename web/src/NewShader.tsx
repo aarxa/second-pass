@@ -8,22 +8,27 @@ import { TopBar } from './theme';
 export function NewShader() {
   const navigate = useNavigate();
   const [creating, setCreating] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<'' | 'offline' | 'limit'>('');
 
   const start = async (t: Template) => {
     setCreating(t.id);
-    setFailed(false);
+    setFailed('');
     try {
       const res = await fetch('/api/shaders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: t.code }),
       });
+      if (res.status === 429) {
+        setFailed('limit');
+        setCreating(null);
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { id } = (await res.json()) as { id: string };
       navigate(`/s/${id}`, { replace: true });
     } catch {
-      setFailed(true);
+      setFailed('offline');
       setCreating(null);
     }
   };
@@ -36,7 +41,8 @@ export function NewShader() {
           <h1>Start a new shader</h1>
           <p>Pick a starting point. It opens in the editor, where you can share the link and edit it with anyone.</p>
           {creating && <p className="waking" role="status">Creating it… if the server was asleep, waking it can take up to a minute.</p>}
-          {failed && <p className="error-text" role="alert">Couldn't reach the server. Pick one again to retry.</p>}
+          {failed === 'offline' && <p className="error-text" role="alert">Couldn't reach the server. Pick one again to retry.</p>}
+          {failed === 'limit' && <p className="error-text" role="alert">That's a lot of new shaders from here in the last hour. Try again a little later, or fork one from the gallery.</p>}
         </div>
         <div className="templates">
           {TEMPLATES.map((t) => (
