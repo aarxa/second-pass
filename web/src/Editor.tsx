@@ -7,12 +7,12 @@ import { yCollab } from 'y-codemirror.next';
 import { EditorView, basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { cpp } from '@codemirror/lang-cpp';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 
 import { ShaderRenderer, type CompileError } from './renderer';
 import { getIdentity } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
+import { TopBar, editorTheme } from './theme';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
@@ -150,8 +150,7 @@ export function Editor() {
       parent: editorEl.current,
       state: EditorState.create({
         doc: ytext.toString(),
-        extensions: [basicSetup, cpp(), oneDark, yCollab(ytext, provider.awareness, { undoManager }),
-          EditorView.theme({ '&': { height: '100%' }, '.cm-scroller': { fontFamily: 'ui-monospace, Menlo, monospace' } })],
+        extensions: [basicSetup, cpp(), editorTheme, yCollab(ytext, provider.awareness, { undoManager })],
       }),
     });
     provider.once('sync', () => {
@@ -188,8 +187,7 @@ export function Editor() {
 
   return (
     <div className="page">
-      <header>
-        <Link to="/gallery" className="brand">Second Pass</Link>
+      <TopBar>
         <div className="title-block">
           <input
             className="title"
@@ -217,8 +215,8 @@ export function Editor() {
         </div>
         <button className="secondary" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
         <button onClick={() => navigator.clipboard.writeText(location.href)}>Copy share link</button>
-      </header>
-      <main>
+      </TopBar>
+      <main className="split">
         <div className="editor" ref={editorEl} />
         <div className="preview">
           <canvas ref={canvasEl} data-testid="preview" />

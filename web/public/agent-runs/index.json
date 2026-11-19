@@ -16,7 +16,13 @@
     "passed": true,
     "costUsd": 0.049,
     "seconds": 106,
-    "thumb": "lava-lamp-haiku.jpg"
+    "thumb": "lava-lamp-haiku.jpg",
+    "finalFrames": [
+      "lava-lamp-haiku-p2-0.jpg",
+      "lava-lamp-haiku-p2-2.jpg",
+      "lava-lamp-haiku-p2-5.jpg",
+      "lava-lamp-haiku-p2-8.jpg"
+    ]
   },
   {
     "id": "lotus",
@@ -35,7 +41,13 @@
     "passed": true,
     "costUsd": 0.531,
     "seconds": 332,
-    "thumb": "lotus.jpg"
+    "thumb": "lotus.jpg",
+    "finalFrames": [
+      "lotus-p2-0.jpg",
+      "lotus-p2-2.jpg",
+      "lotus-p2-5.jpg",
+      "lotus-p2-8.jpg"
+    ]
   },
   {
     "id": "lava-lamp",
@@ -54,6 +66,12 @@
     "passed": true,
     "costUsd": 0.304,
     "seconds": 136,
-    "thumb": "lava-lamp.jpg"
+    "thumb": "lava-lamp.jpg",
+    "finalFrames": [
+      "lava-lamp-p2-0.jpg",
+      "lava-lamp-p2-2.jpg",
+      "lava-lamp-p2-5.jpg",
+      "lava-lamp-p2-8.jpg"
+    ]
   }
 ]

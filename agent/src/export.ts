@@ -11,11 +11,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Renderer } from './render.ts';
 import type { Step, Trace } from './agent.ts';
-import type { Run, RunStep, RunSummary } from '../../web/src/agentRun.ts';
+import type { ReelPass, Run, RunStep, RunSummary } from '../../web/src/agentRun.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HERE, '..', '..', 'web', 'public', 'agent-runs');
 const PASS = 7;
+const REEL_TIMES = [0, 2, 5, 8];
 
 function toRunStep(s: Step): RunStep {
   switch (s.type) {
@@ -47,13 +48,31 @@ async function main() {
   if (!request) throw new Error('this trace does not record its request; pass --request "..."');
   const models = { writer: writer ?? trace.models?.writer ?? 'claude-opus-5-5', judge: judge ?? trace.models?.judge ?? 'claude-opus-5-5' };
 
-  // The list picture: the final shader at 2 s, rendered the same way the agent saw it.
+  // Pictures, rendered the same way the agent saw its work: the list picture (the final shader at
+  // 2 s) and, for the reel, every judged pass at a few moments in time.
+  await mkdir(OUT, { recursive: true });
   const renderer = await Renderer.open();
   let picture: string;
+  const reel: ReelPass[] = [];
   try {
     const shot = await renderer.render(trace.code, { width: 640, height: 360, times: [2], format: 'jpeg' });
     if (!shot.ok) throw new Error(`the final shader no longer renders: ${shot.errors.map((e) => e.message).join('; ')}`);
     picture = shot.frames[0].png;
+    for (const [i, step] of trace.steps.entries()) {
+      if (step.type !== 'judge') continue;
+      // The shader that was judged: the last draft of that round before the verdict.
+      const judged = trace.steps.slice(0, i).reverse().find((s) => s.type === 'draft' && s.round === step.round);
+      if (!judged || judged.type !== 'draft') continue;
+      const frames = await renderer.render(judged.code, { width: 320, height: 180, times: REEL_TIMES, format: 'jpeg' });
+      if (!frames.ok) continue;
+      const pass: ReelPass = { round: step.round, frames: [] };
+      for (const f of frames.frames) {
+        const src = `${id}-p${step.round}-${f.t}.jpg`;
+        await writeFile(path.join(OUT, src), Buffer.from(f.png, 'base64'));
+        pass.frames.push({ t: f.t, src });
+      }
+      reel.push(pass);
+    }
   } finally {
     await renderer.close();
   }
@@ -66,10 +85,10 @@ async function main() {
     costUsd: Math.round(trace.usage.costUsd * 1000) / 1000,
     seconds: Math.round(trace.ms / 1000),
     thumb: `${id}.jpg`,
+    finalFrames: reel.at(-1)?.frames.map((f) => f.src) ?? [],
   };
-  const run: Run = { ...summary, passScore: PASS, steps: trace.steps.map(toRunStep) };
+  const run: Run = { ...summary, passScore: PASS, steps: trace.steps.map(toRunStep), reel };
 
-  await mkdir(OUT, { recursive: true });
   await writeFile(path.join(OUT, `${id}.json`), JSON.stringify(run));
   await writeFile(path.join(OUT, `${id}.jpg`), Buffer.from(picture, 'base64'));
   const indexPath = path.join(OUT, 'index.json');

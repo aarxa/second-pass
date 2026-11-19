@@ -1,5 +1,6 @@
 // The saved-run format the replay page plays back. agent/src/export.ts writes these files into
-// web/public/agent-runs/ (index.json lists them; <id>.json holds one run; <id>.png is its picture).
+// web/public/agent-runs/ (index.json lists them; <id>.json holds one run; <id>.jpg is its picture, and
+// <id>-p<pass>-<seconds>.jpg are the frames of each judged pass, shown as the film reel).
 // They are static files on purpose: replays cost nothing to serve and never need an API key.
 
 export interface RunSummary {
@@ -13,7 +14,14 @@ export interface RunSummary {
   passed: boolean;
   costUsd: number;
   seconds: number;
-  thumb: string; // file name next to the run, e.g. "lava-lamp.png"
+  thumb: string; // file name next to the run, e.g. "lava-lamp.jpg"
+  finalFrames: string[]; // the last judged pass's frames, for the mini reel on the list
+}
+
+/** One judged pass on the reel: the shader that was judged, rendered at a few moments. */
+export interface ReelPass {
+  round: number;
+  frames: { t: number; src: string }[];
 }
 
 export type RunStep =
@@ -26,4 +34,5 @@ export type RunStep =
 export interface Run extends RunSummary {
   passScore: number;
   steps: RunStep[];
+  reel: ReelPass[];
 }

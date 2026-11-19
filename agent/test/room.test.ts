@@ -132,4 +132,17 @@ describe('plan narration', () => {
     await room.type(A);
     await until(() => watcher.text.toString() === A);
   }, 20_000);
+
+  it('types under the plan into code with no final newline, then removes the plan', async () => {
+    const { id, url } = await newShader();
+    const watcher = await person(id);
+    watcher.text.delete(0, watcher.text.length);
+    watcher.text.insert(0, 'void x() {}'); // no newline at the end
+    const room = await LiveRoom.join(url, { tickMs: 0 });
+    cleanup.push(() => room.leave());
+    room.narrate('A plan.');
+    await until(() => watcher.text.toString().startsWith('// Shader agent is planning:'));
+    await room.type(B);
+    await until(() => watcher.text.toString() === B);
+  }, 20_000);
 });
