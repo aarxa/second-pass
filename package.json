@@ -1,6 +1,7 @@
 {
   "name": "second-pass",
   "private": true,
+  "license": "MIT",
   "workspaces": [
     "server",
     "web",
