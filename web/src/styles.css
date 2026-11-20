@@ -102,6 +102,8 @@ button.in-gallery { color: var(--ok); border-color: currentColor; }
 .top .actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .peer-wrap { display: inline-flex; align-items: center; gap: 6px; }
 .peer { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 600 11px var(--mono); color: #111; }
+/* The name on someone else's cursor: the app's type, not the browser's serif default. */
+.cm-editor .cm-ySelectionCaret > .cm-ySelectionInfo { font: 600 11px/1.45 var(--sans); top: -1.6em; left: -2px; padding: 1px 6px; border-radius: 4px 4px 4px 0; color: #fff; }
 .peer-status { font: 500 11px var(--mono); padding: 4px 9px; border: 1px solid; border-radius: 999px; color: var(--ink); white-space: nowrap; background: var(--panel); }
 main.split { flex: 1; display: grid; grid-template-columns: minmax(0, var(--split, 50%)) 10px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); min-height: 0; }
 .code-pane { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--codebg); }
