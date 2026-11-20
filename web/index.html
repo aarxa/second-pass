@@ -19,9 +19,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#fbfbf7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121417" media="(prefers-color-scheme: dark)" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" />
+    <!-- The fonts are served with the site and preloaded (vite.config.ts adds the links), so text doesn't reflow when they arrive. -->
     <script>
       // Apply a saved light/dark choice before the first paint, so the page never flashes the other theme.
       try { var t = localStorage.getItem('secondpass.theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}

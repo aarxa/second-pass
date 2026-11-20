@@ -1,12 +1,12 @@
 // Gallery: the shaders someone added (new ones are drafts until then), most recently added first,
 // loaded a page at a time with the server's cursor. Hovering a card runs the real shader in it; the
-// ones the agent wrote are tagged and link to their replay.
+// ones the agent wrote carry a "By the agent" badge that links to their replay, and show its score.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { RunSummary } from './agentRun';
 import { FadeImg } from './FadeImg';
 import { LiveShader } from './LiveShader';
-import { TopBar, usePageTitle } from './theme';
+import { SiteFooter, TopBar, usePageTitle } from './theme';
 
 interface Item {
   id: string;
@@ -30,12 +30,11 @@ function placeholder(id: string): string {
 
 const PAGE = 24;
 
-function ago(iso: string): string {
-  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  const units: [number, string][] = [[86400 * 30, 'mo'], [86400, 'd'], [3600, 'h'], [60, 'm']];
-  for (const [n, u] of units) if (s >= n) return `${Math.floor(s / n)}${u} ago`;
-  return 'just now';
+/** "Added Nov 19" (with the year once it isn't this year's). */
+function added(iso: string): string {
+  const d = new Date(iso);
+  const thisYear = d.getFullYear() === new Date().getFullYear();
+  return `Added ${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(thisYear ? {} : { year: 'numeric' }) })}`;
 }
 
 // Each shader's code, fetched once, for the live preview on hover.
@@ -56,7 +55,7 @@ function codeFor(id: string): Promise<string | null> {
 const hoverPreviews = () =>
   window.matchMedia('(hover: hover) and (pointer: fine)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: string }) {
+function Card({ it, run, forkedTitle }: { it: Item; run?: RunSummary; forkedTitle?: string }) {
   const navigate = useNavigate();
   const [hover, setHover] = useState(false);
   const [code, setCode] = useState<string | null>(null);
@@ -86,42 +85,44 @@ function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: 
 
   const enter = () => hoverPreviews() && setHover(true);
   const leave = () => setHover(false);
+  const score = run?.scores[run.scores.length - 1];
   return (
     <article className="card">
-      <Link to={`/s/${it.id}`} className="thumb" style={{ background: placeholder(it.id) }} onPointerEnter={enter} onPointerLeave={leave} onFocus={enter} onBlur={leave}>
-        {it.thumbnailAt && (
-          // ?v= is the thumbnail's version: the URL changes when the image does, so the server
-          // can let the browser cache each version forever.
-          <FadeImg
-            src={`/api/shaders/${it.id}/thumbnail?v=${new Date(it.thumbnailAt).getTime()}`}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            width={320}
-            height={180}
-            onError={(e) => (e.currentTarget.style.display = 'none')}
-          />
-        )}
-        {hover && code && <LiveShader code={code} label={it.title} />}
-      </Link>
-      <div className="card-body">
-        <Link to={`/s/${it.id}`} className="card-title">{it.title}</Link>
-        <div className="card-meta">
-          added {ago(it.publishedAt)}
-          {it.forkedFrom && <> · forked from {forkedTitle ?? it.forkedFrom}</>}
-        </div>
+      <div className="thumb-wrap">
+        <Link to={`/s/${it.id}`} className="thumb" style={{ background: placeholder(it.id) }} onPointerEnter={enter} onPointerLeave={leave} onFocus={enter} onBlur={leave}>
+          {it.thumbnailAt && (
+            // ?v= is the thumbnail's version: the URL changes when the image does, so the server
+            // can let the browser cache each version forever.
+            <FadeImg
+              src={`/api/shaders/${it.id}/thumbnail?v=${new Date(it.thumbnailAt).getTime()}`}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width={320}
+              height={180}
+              onError={(e) => (e.currentTarget.style.display = 'none')}
+            />
+          )}
+          {hover && code && <LiveShader code={code} label={it.title} />}
+        </Link>
+        {run && <Link to={`/agent/${run.id}`} className="agent-badge" title="Written by the agent: watch the run">By the agent</Link>}
       </div>
-      <div className="card-actions">
-        {run ? <Link to={`/agent/${run}`} className="tag" title="Written by the agent: watch the run">Agent run</Link> : <span />}
-        {forkFailed && <span className="error-text small">{forkFailed}</span>}
+      <div className="card-row">
+        <div className="card-body">
+          <Link to={`/s/${it.id}`} className="card-title">{it.title}</Link>
+          <div className="card-meta">
+            {run ? `Judge ${score}/10 · ${run.rounds} ${run.rounds === 1 ? 'pass' : 'passes'}` : added(it.publishedAt)}
+            {it.forkedFrom && <> · forked from {forkedTitle ?? it.forkedFrom}</>}
+          </div>
+        </div>
         <button className="secondary small" onClick={fork} disabled={forking}>{forking ? 'Forking…' : 'Fork'}</button>
       </div>
+      {forkFailed && <span className="error-text small card-error">{forkFailed}</span>}
     </article>
   );
 }
 
 export function Gallery() {
-  const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -129,7 +130,7 @@ export function Gallery() {
   const [slow, setSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
-  const [runOf, setRunOf] = useState<Map<string, string>>(new Map()); // gallery id -> agent run id
+  const [runOf, setRunOf] = useState<Map<string, RunSummary>>(new Map()); // gallery id -> the agent run that wrote it
   const started = useRef(false);
   usePageTitle('Gallery');
 
@@ -162,7 +163,7 @@ export function Gallery() {
     // Which gallery shaders the agent wrote: the runs list (a static file) links each run to its copy.
     fetch('/agent-runs/index.json')
       .then((r) => (r.ok ? (r.json() as Promise<RunSummary[]>) : []))
-      .then((runs) => setRunOf(new Map(runs.flatMap((r) => (r.galleryId ? [[r.galleryId, r.id] as const] : [])))))
+      .then((runs) => setRunOf(new Map(runs.flatMap((r) => (r.galleryId ? [[r.galleryId, r] as const] : [])))))
       .catch(() => {});
   }, [loadMore]);
 
@@ -172,14 +173,13 @@ export function Gallery() {
   const firstLoad = loading && items.length === 0;
 
   return (
-    <div className="page gallery-page">
-      <TopBar active="gallery">
-        <button className="push" onClick={() => navigate('/new')}>New shader</button>
-      </TopBar>
+    <div className="page doc gallery-page">
+      <TopBar active="gallery" />
+      <main className="wrap">
       <div className="gallery-bar">
         <h1>Gallery</h1>
         <div className="filters" role="group" aria-label="Show">
-          {([['all', 'All'], ['agent', 'Made by the agent'], ['people', 'Made by people']] as [Filter, string][]).map(([f, label]) => (
+          {([['all', 'All'], ['agent', 'By the agent'], ['people', 'By people']] as [Filter, string][]).map(([f, label]) => (
             <button key={f} className={`chip${filter === f ? ' on' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>
               {label}{items.length > 0 && <span>{count(f)}</span>}
             </button>
@@ -208,6 +208,8 @@ export function Gallery() {
           </button>
         )}
       </div>
+      </main>
+      <SiteFooter />
     </div>
   );
 }

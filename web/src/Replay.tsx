@@ -20,7 +20,7 @@ import { QUOTES } from './quotes';
 import { briefText, type Run, type RunStep } from './agentRun';
 import { Missing } from './Missing';
 import { duration, modelName, money } from './Runs';
-import { TopBar, editorTheme, usePageTitle } from './theme';
+import { Toolbar, TopBar, editorTheme, usePageTitle } from './theme';
 
 const TICK_MS = 16;
 const PAUSE_MS = { compile: 700, render: 1100, judge: 2200, decide: 2400, stop: 300 }; // reading time at 1x
@@ -326,7 +326,7 @@ export function Replay() {
   };
 
   if (error) return <Missing title="Couldn't load this run" text={`It may have been removed, or the connection dropped (${error}).`}><button onClick={() => navigate('/agent')}>All runs</button></Missing>;
-  if (!run) return <div className="center">Loading…</div>;
+  if (!run) return <div className="page replay"><TopBar active="runs" /><div className="center">Loading the run…</div></div>;
 
   const shown = active ?? cursor; // the furthest step on screen, finished or in progress
   const last = run.steps.length - 1;
@@ -368,22 +368,24 @@ export function Replay() {
     if (k !== cursorRef.current || playing) seek(k);
   };
 
+  // Before the first pass compiles there is no picture yet: say what the agent is doing instead of a black box.
+  const firstCompiled = run.steps.findIndex((s) => s.type === 'compile' && s.ok);
+  const noPicture = active !== null ? active < firstCompiled : codeAfter(cursor) === '';
+
   const stageIndex = stage === 'done' ? STAGES.length : STAGES.indexOf(stage as (typeof STAGES)[number]);
 
   return (
     <div className="page replay">
-      <TopBar active="runs">
-        <div className="controls">
-          <button onClick={() => (playing ? pause() : play())}>{playing ? '❚❚ Pause' : finished ? '↺ Replay' : '▶ Play'}</button>
-          <div className="speed" role="radiogroup" aria-label="Speed">
-            {[0.5, 1, 2, 4].map((s) => (
-              <button key={s} role="radio" aria-checked={speed === s} className={speed === s ? 'on' : ''} onClick={() => setSpeed(s)}>{s}×</button>
-            ))}
-          </div>
-          <button className="secondary" onClick={() => seek(last)} disabled={finished}>Skip to end</button>
-          {run.galleryId && <button className="secondary" onClick={() => navigate(`/s/${run.galleryId}`)} title="Open the shader it kept in the editor, to play with or fork">Open in editor</button>}
-        </div>
-      </TopBar>
+      <TopBar active="runs" />
+      <Toolbar>
+        <Link to="/agent" className="back" title="All runs">← Runs</Link>
+        <h1 className="run-title">{run.title}</h1>
+        <span className="run-meta">
+          <span className="chips">{run.scores.map((s, i) => <span key={i} className={`score-chip${i === run.scores.length - 1 && run.passed ? ' ok' : ''}`}>{s}</span>)}</span>
+          {run.rounds} {run.rounds === 1 ? 'pass' : 'passes'} · {money(run.costUsd)} · {duration(run.seconds)}
+        </span>
+        {run.galleryId && <Link className="btn secondary push" to={`/s/${run.galleryId}`} title="Open the shader it kept in the editor, to play with or fork">Open in editor</Link>}
+      </Toolbar>
       <main>
         <div className="code" ref={editorEl} />
         <div className="side">
@@ -401,12 +403,26 @@ export function Replay() {
 
           <div className="stage-wrap">
             <canvas ref={canvasEl} />
-            {codeAfter(cursor) === '' && active === null && <div className="note">Press Play to watch the agent work.</div>}
+            {noPicture && (
+              <div className="note" role="status">
+                {active === null ? 'Press Play to watch the agent work.' : <><span><i className="spinner" aria-hidden="true" />{DOING[stage]}</span><small>The picture appears once the code compiles.</small></>}
+              </div>
+            )}
             {current && <span className="tag"><i />Pass {current.round} · live preview</span>}
             <div className="stages" aria-label="Where the agent is">
               {STAGES.map((s, i) => <span key={s} className={i === stageIndex ? 'now' : i < stageIndex ? 'done' : ''}>{s}</span>)}
             </div>
             {errors.length > 0 && <pre className="errors">{errors.join('\n')}</pre>}
+          </div>
+
+          <div className="player">
+            <button className="play" onClick={() => (playing ? pause() : play())}>{playing ? '❚❚ Pause' : finished ? '↺ Replay' : '▶ Play'}</button>
+            <div className="speed" role="radiogroup" aria-label="Speed">
+              {[0.5, 1, 2, 4].map((s) => (
+                <button key={s} role="radio" aria-checked={speed === s} className={speed === s ? 'on' : ''} onClick={() => setSpeed(s)}>{s}×</button>
+              ))}
+            </div>
+            <button className="secondary" onClick={() => seek(last)} disabled={finished}>Skip to end</button>
           </div>
 
           {run.reel.length > 0 && (

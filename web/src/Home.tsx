@@ -8,7 +8,7 @@ import { LiveShader } from './LiveShader';
 import { duration, money } from './Runs';
 import { plain } from './prose';
 import { QUOTES } from './quotes';
-import { GITHUB_URL, TopBar, usePageTitle } from './theme';
+import { SiteFooter, TopBar, usePageTitle } from './theme';
 
 // The runs the page features. If one is missing from the list, the page falls back to others.
 const HERO_RUN = 'black-hole';
@@ -91,12 +91,9 @@ export function Home() {
   const shown = judged.length > 2 ? [judged[0], judged[judged.length - 1]] : judged;
 
   return (
-    <div className="home">
-      <TopBar active="home">
-        <a className="gh" href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
-        <button onClick={() => navigate('/new')}>New shader</button>
-      </TopBar>
-      <main>
+    <div className="page doc home">
+      <TopBar />
+      <main className="wrap">
         <section className="hero">
           <div className="hero-text">
             <div className="kick">A shader playground with an AI that checks its own work</div>
@@ -226,11 +223,11 @@ export function Home() {
           <div className="picks">
             {PICKS.map((p) => (
               <div key={p.id} className="pick">
-                <Link to={`/s/${p.id}`}><FadeImg src={p.img} alt="" loading="lazy" /></Link>
-                <div className="pick-title">
-                  <Link to={`/s/${p.id}`}>{p.title}</Link>
-                  {p.run && <Link to={`/agent/${p.run}`} className="tag" title="Written by the agent: watch the run">Agent</Link>}
+                <div className="thumb-wrap">
+                  <Link to={`/s/${p.id}`}><FadeImg src={p.img} alt="" loading="lazy" /></Link>
+                  {p.run && <Link to={`/agent/${p.run}`} className="agent-badge" title="Written by the agent: watch the run">By the agent</Link>}
                 </div>
+                <div className="pick-title"><Link to={`/s/${p.id}`}>{p.title}</Link></div>
               </div>
             ))}
           </div>
@@ -250,13 +247,7 @@ export function Home() {
           </div>
         </section>
       </main>
-      <footer className="home-foot">
-        <span>Second Pass · made by Aarya Rajgor</span>
-        <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
-        <Link to="/agent">Runs</Link>
-        <Link to="/gallery">Gallery</Link>
-        <Link to="/how">How it works</Link>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

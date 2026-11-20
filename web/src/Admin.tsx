@@ -3,16 +3,16 @@
 // The key never leaves the browser except as the Authorization header on that one request.
 import { useState } from 'react';
 import { adminKey, setAdminKey } from './keys';
-import { TopBar, usePageTitle } from './theme';
+import { SiteFooter, TopBar, usePageTitle } from './theme';
 
 export function Admin() {
   const [saved, setSaved] = useState(() => adminKey() !== null);
   const [value, setValue] = useState('');
   usePageTitle('Site owner');
   return (
-    <div className="page">
+    <div className="page doc">
       <TopBar />
-      <main className="admin">
+      <main className="wrap admin">
         <h1>Site owner</h1>
         <p>
           Paste the admin key you set as <code>ADMIN_TOKEN</code> on the server. It is kept only in this browser and lets
@@ -39,6 +39,7 @@ export function Admin() {
           </form>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }
