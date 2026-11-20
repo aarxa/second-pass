@@ -35,9 +35,9 @@ const SNIPPET = `void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 }`;
 // "Under the hood": the numbers behind it, each linking to its part of /how.
 const HOOD = [
-  { k: 'Live sync', big: '42 ms', text: 'for an edit to reach everyone else in the room, measured on the live site', to: 'editor' },
+  { k: 'Live sync', big: '42 ms', text: 'for an edit to reach everyone else in the room, measured on the live site', to: 'measured' },
   { k: 'Load test', big: '1,000', text: 'people editing at once on one CPU and 512 MB, each typing five keys a second', to: 'measured' },
-  { k: 'Renderer', big: 'WebGL2', text: 'written by hand, with no graphics library; compile errors land on the right line', to: 'renderer' },
+  { k: 'Renderer', big: 'WebGL2', text: 'written by hand, with no graphics library; compile errors land on the right line', to: 'built' },
   { k: 'Agent', big: '4 frames', text: 'rendered on every pass and scored against the brief by a vision model', to: 'agent' },
 ];
 const SNIPPET_CURSORS: Record<number, [string, string]> = { 3: ['Quiet Fox', '#f97316'], 6: ['Neon Koi', '#3b82f6'] };
