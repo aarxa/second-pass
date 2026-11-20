@@ -16,6 +16,7 @@ import { TopBar, editorTheme } from './theme';
 import { collabUrl } from './server';
 import { forgetOwnerKey, removalKey, saveOwnerKey } from './keys';
 import { Reference } from './Reference';
+import { Missing } from './Missing';
 
 type Status = 'connecting' | 'connected' | 'disconnected';
 interface Peer {
@@ -61,6 +62,7 @@ export function Editor() {
   const metaRef = useRef<Y.Map<unknown> | null>(null);
   const [title, setTitle] = useState('');
   const [forkedFrom, setForkedFrom] = useState<string | null>(null);
+  const [forkedTitle, setForkedTitle] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
   // Gallery membership: null until the shader's metadata has loaded.
   const [inGallery, setInGallery] = useState<boolean | null>(null);
@@ -114,6 +116,12 @@ export function Editor() {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           const meta = (await r.json()) as { forkedFrom: string | null; thumbnailAt: string | null; publishedAt: string | null };
           setForkedFrom(meta.forkedFrom);
+          if (meta.forkedFrom) {
+            fetch(`/api/shaders/${meta.forkedFrom}`)
+              .then((s) => (s.ok ? (s.json() as Promise<{ title: string }>) : null))
+              .then((s) => !cancelled && s && setForkedTitle(s.title))
+              .catch(() => {});
+          }
           setInGallery(meta.publishedAt !== null);
           if (meta.thumbnailAt === null) {
             thumbnailMissing.current = true;
@@ -470,7 +478,14 @@ export function Editor() {
   };
   const canRemove = inGallery === true && removalKey(id) !== null;
 
-  if (notFound) return <div className="center">Shader not found. <a href="/new">Make a new one</a></div>;
+  if (notFound) {
+    return (
+      <Missing title="This shader doesn't exist" text="The link may be mistyped, or the shader was never saved. Start a new one, or pick one from the gallery.">
+        <button onClick={() => navigate('/new')}>New shader</button>
+        <button className="secondary" onClick={() => navigate('/gallery')}>Browse the gallery</button>
+      </Missing>
+    );
+  }
 
   return (
     <div className="page editor-page">
@@ -512,6 +527,10 @@ export function Editor() {
           ))}
         </div>
         <div className="actions">
+          <button className={`secondary ref-btn${refOpen ? ' on' : ''}`} onClick={() => setRefOpen((o) => !o)} aria-expanded={refOpen} title="What a shader gets, small recipes and handy functions">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5z" /><path d="M4 20.5A2.5 2.5 0 006.5 23H20v-5" /></svg>
+            <span className="lbl">Reference</span>
+          </button>
           {inGallery === false && (
             <button
               className="secondary"
@@ -566,8 +585,7 @@ export function Editor() {
                 : <span className="good">✓ Compiled</span>}
             {inGallery && <span>Read-only</span>}
             <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
-            {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from {forkedFrom}</Link>}
-            <button className="ref-toggle" onClick={() => setRefOpen((o) => !o)} aria-expanded={refOpen}>{refOpen ? 'Close reference' : 'Reference'}</button>
+            {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from “{forkedTitle ?? 'another shader'}”</Link>}
           </div>
         </div>
         <div
@@ -602,6 +620,7 @@ export function Editor() {
             <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
           )}
         </div>
+        {refOpen && <div className="ref-backdrop" onClick={() => setRefOpen(false)} aria-hidden="true" />}
         {refOpen && <Reference onClose={() => setRefOpen(false)} onInsert={inGallery ? undefined : insertSnippet} />}
       </main>
     </div>
