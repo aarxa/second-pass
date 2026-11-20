@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LiveShader } from './LiveShader';
 import { TEMPLATES, type Template } from './templates';
-import { TopBar } from './theme';
+import { TopBar, usePageTitle } from './theme';
 
 export function NewShader() {
   const navigate = useNavigate();
   const [creating, setCreating] = useState<string | null>(null);
   const [failed, setFailed] = useState<'' | 'offline' | 'limit'>('');
+  usePageTitle('New shader');
 
   const start = async (t: Template) => {
     setCreating(t.id);

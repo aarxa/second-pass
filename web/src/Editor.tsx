@@ -12,7 +12,7 @@ import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import { ShaderRenderer, type CompileError } from './renderer';
 import { getIdentity, initials } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
-import { TopBar, editorTheme } from './theme';
+import { TopBar, editorTheme, usePageTitle } from './theme';
 import { collabUrl } from './server';
 import { forgetOwnerKey, removalKey, saveOwnerKey } from './keys';
 import { Reference } from './Reference';
@@ -84,6 +84,7 @@ export function Editor() {
   const [paused, setPaused] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [copied, setCopied] = useState<'idle' | 'ok'>('idle');
+  const [codeCopied, setCodeCopied] = useState(false);
   // Width of the code side, in percent; remembered per browser.
   const [split, setSplit] = useState(() => {
     try {
@@ -99,6 +100,7 @@ export function Editor() {
   const [errors, setErrors] = useState<CompileError[]>([]);
   const [peers, setPeers] = useState<Peer[]>([]);
   const [notFound, setNotFound] = useState(false);
+  usePageTitle(notFound ? 'Not found' : title.trim() || (synced ? 'Untitled shader' : null));
   // Set by the main effect; the metadata fetch calls it if this shader has no thumbnail yet.
   const backfillThumbnail = useRef<(() => void) | null>(null);
   const thumbnailMissing = useRef(false);
@@ -392,6 +394,38 @@ export function Editor() {
   // Reference "Insert": puts a snippet on its own line below the cursor (or on the cursor's line if it
   // is empty), indented like that line, and puts the cursor after it. If the cursor was never placed
   // (it sits at the very start), the snippet goes at the end of mainImage, where it will compile.
+  /** Puts the cursor at the start of a line and scrolls it to the middle, e.g. from a compile error. */
+  const jumpToLine = (n: number) => {
+    const view = viewRef.current;
+    if (!view) return;
+    const line = view.state.doc.line(Math.min(Math.max(1, n), view.state.doc.lines));
+    view.dispatch({ selection: { anchor: line.from }, effects: EditorView.scrollIntoView(line.from, { y: 'center' }) });
+    view.focus();
+  };
+
+  const copyCode = async () => {
+    const code = viewRef.current?.state.doc.toString() ?? '';
+    try {
+      await navigator.clipboard.writeText(code);
+      setCodeCopied(true);
+      window.setTimeout(() => setCodeCopied(false), 1600);
+    } catch {
+      window.prompt('Copy the code:', code);
+    }
+  };
+
+  /** Saves the code as a .glsl file named after the shader. */
+  const downloadCode = () => {
+    const code = viewRef.current?.state.doc.toString() ?? '';
+    const name = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'shader';
+    const url = URL.createObjectURL(new Blob([code], { type: 'text/plain' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${name}.glsl` });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const insertSnippet = (code: string) => {
     const view = viewRef.current;
     if (!view || lockedRef.current) return;
@@ -581,11 +615,17 @@ export function Editor() {
             {!synced
               ? <span>Loading code…</span>
               : errors.length > 0
-                ? <span className="bad">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</span>
+                ? <button className="link bad" onClick={() => jumpToLine(errors[0].line)} title="Go to the first error">{errors.length} {errors.length === 1 ? 'error' : 'errors'}</button>
                 : <span className="good">✓ Compiled</span>}
             {inGallery && <span>Read-only</span>}
             <span>{peers.length + 1} {peers.length === 0 ? 'person' : 'people'} here</span>
             {forkedFrom && <Link className="forked" to={`/s/${forkedFrom}`}>forked from “{forkedTitle ?? 'another shader'}”</Link>}
+            {synced && (
+              <span className="code-tools">
+                <button className="link" onClick={copyCode}>{codeCopied ? 'Copied ✓' : 'Copy code'}</button>
+                <button className="link" onClick={downloadCode} title="Save the code as a .glsl file">Download .glsl</button>
+              </span>
+            )}
           </div>
         </div>
         <div
@@ -617,7 +657,13 @@ export function Editor() {
             </button>
           </div>
           {errors.length > 0 && (
-            <pre className="errors">{errors.map((e) => `line ${e.line}: ${e.message}`).join('\n')}</pre>
+            <div className="errors" role="list" aria-label="Compile errors">
+              {errors.map((e, i) => (
+                <button key={i} role="listitem" className="err-line" onClick={() => jumpToLine(e.line)} title={`Go to line ${e.line}`}>
+                  <b>line {e.line}</b> {e.message}
+                </button>
+              ))}
+            </div>
           )}
         </div>
         {refOpen && <div className="ref-backdrop" onClick={() => setRefOpen(false)} aria-hidden="true" />}

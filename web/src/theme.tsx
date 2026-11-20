@@ -43,15 +43,22 @@ export function ThemeToggle() {
 
 export const GITHUB_URL = 'https://github.com/aarxa/second-pass';
 
+/** Names the browser tab (and the history entry): "Black hole · Second Pass". With no name, just "Second Pass". */
+export function usePageTitle(name?: string | null) {
+  useEffect(() => {
+    document.title = name ? `${name} · Second Pass` : 'Second Pass';
+  }, [name]);
+}
+
 /** The top bar on every page. `children` go between the navigation and the theme toggle. */
-export function TopBar({ active, children }: { active?: 'home' | 'runs' | 'gallery'; children?: ReactNode }) {
+export function TopBar({ active, children }: { active?: 'home' | 'runs' | 'gallery' | 'how'; children?: ReactNode }) {
   return (
     <header className="top">
       <Link to="/" className="mark" aria-label="Second Pass, home">Second<span>/</span>Pass</Link>
       <nav className="nav">
         <Link to="/agent" className={active === 'runs' ? 'on' : ''}>Runs</Link>
         <Link to="/gallery" className={active === 'gallery' ? 'on' : ''}>Gallery</Link>
-        {active === 'home' && <a href="#how">How it works</a>}
+        <Link to="/how" className={active === 'how' ? 'on' : ''}>How it works</Link>
       </nav>
       {children}
       <ThemeToggle />

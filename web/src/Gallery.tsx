@@ -4,8 +4,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { RunSummary } from './agentRun';
+import { FadeImg } from './FadeImg';
 import { LiveShader } from './LiveShader';
-import { TopBar } from './theme';
+import { TopBar, usePageTitle } from './theme';
 
 interface Item {
   id: string;
@@ -91,7 +92,7 @@ function Card({ it, run, forkedTitle }: { it: Item; run?: string; forkedTitle?: 
         {it.thumbnailAt && (
           // ?v= is the thumbnail's version: the URL changes when the image does, so the server
           // can let the browser cache each version forever.
-          <img
+          <FadeImg
             src={`/api/shaders/${it.id}/thumbnail?v=${new Date(it.thumbnailAt).getTime()}`}
             alt=""
             loading="lazy"
@@ -130,6 +131,7 @@ export function Gallery() {
   const [filter, setFilter] = useState<Filter>('all');
   const [runOf, setRunOf] = useState<Map<string, string>>(new Map()); // gallery id -> agent run id
   const started = useRef(false);
+  usePageTitle('Gallery');
 
   const loadMore = useCallback(async (after: string | null) => {
     setLoading(true);

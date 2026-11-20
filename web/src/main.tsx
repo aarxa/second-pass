@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Editor } from './Editor';
 import { Gallery } from './Gallery';
 import { Home } from './Home';
+import { HowItWorks } from './How';
 import { Admin } from './Admin';
 import { NewShader } from './NewShader';
 import { Missing } from './Missing';
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/new" element={<NewShader />} />
         <Route path="/s/:id" element={<Editor />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/how" element={<HowItWorks />} />
         <Route path="/agent" element={<Runs />} />
         <Route path="/agent/:id" element={<Replay />} />
         <Route path="/admin" element={<Admin />} />

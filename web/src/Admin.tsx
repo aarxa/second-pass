@@ -3,11 +3,12 @@
 // The key never leaves the browser except as the Authorization header on that one request.
 import { useState } from 'react';
 import { adminKey, setAdminKey } from './keys';
-import { TopBar } from './theme';
+import { TopBar, usePageTitle } from './theme';
 
 export function Admin() {
   const [saved, setSaved] = useState(() => adminKey() !== null);
   const [value, setValue] = useState('');
+  usePageTitle('Site owner');
   return (
     <div className="page">
       <TopBar />
