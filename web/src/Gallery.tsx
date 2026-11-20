@@ -183,7 +183,7 @@ export function Gallery() {
             </button>
           ))}
         </div>
-        <p className="gallery-hint">Hover a card to run it. Open one to see the code, or fork it to make your own.</p>
+        <p className="gallery-hint"><span className="hover-only">Hover a card to run it. </span>Open one to see the code, or fork it to make your own.</p>
       </div>
       {slow && (
         <p className="waking-line" role="status"><i className="spinner" aria-hidden="true" /> Waking the server… the free server sleeps when nobody has used it for a while. This takes up to a minute.</p>

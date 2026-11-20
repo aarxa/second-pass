@@ -18,6 +18,7 @@ import { lineDiff, planComment } from './agentText';
 import { Inline, Prose, plain } from './prose';
 import { QUOTES } from './quotes';
 import { briefText, type Run, type RunStep } from './agentRun';
+import { Missing } from './Missing';
 import { duration, modelName, money } from './Runs';
 import { TopBar, editorTheme } from './theme';
 
@@ -83,6 +84,20 @@ function mainPoint(runId: string, round: number, critique: string, passed: boole
   const critical = !passed && sentences.find((s) => s.length > 30 && /\b(not|no|isn't|doesn't|missing|frozen|barely|lacks?|too|weak|but|however)\b/i.test(s));
   const pick = critical || sentences[0] || '';
   return pick.length > 200 ? pick.slice(0, 197).trimEnd() + '…' : pick;
+}
+
+/**
+ * Keeps the typing in view by scrolling the code panel only. CodeMirror's own scrollIntoView also
+ * scrolls the page, which on a phone (where the code sits below the picture) kept dragging the whole
+ * page down to the code while a replay played.
+ */
+function keepInView(view: EditorView, pos: number) {
+  const line = view.lineBlockAt(Math.min(pos, view.state.doc.length));
+  const sd = view.scrollDOM;
+  const top = line.top, bottom = line.bottom;
+  if (top < sd.scrollTop + 24 || bottom > sd.scrollTop + sd.clientHeight - 24) {
+    sd.scrollTop = Math.max(0, bottom - sd.clientHeight * 0.6);
+  }
 }
 
 export function Replay() {
@@ -181,7 +196,8 @@ export function Replay() {
   const insert = (at: number, text: string) => {
     const view = viewRef.current!;
     const from = Math.min(at, view.state.doc.length); // never past the end (an edge seen once on a last line)
-    view.dispatch({ changes: { from, insert: text }, selection: { anchor: from + text.length }, scrollIntoView: true });
+    view.dispatch({ changes: { from, insert: text }, selection: { anchor: from + text.length } });
+    keepInView(view, from + text.length);
   };
 
   /**
@@ -201,7 +217,8 @@ export function Replay() {
       if (op.kind === 'keep') { pos = Math.min(pos + op.line.length + 1, view.state.doc.length); continue; }
       if (op.kind === 'del') {
         const end = Math.min(pos + op.line.length + 1, view.state.doc.length);
-        view.dispatch({ changes: { from: pos, to: end }, selection: { anchor: pos }, scrollIntoView: true });
+        view.dispatch({ changes: { from: pos, to: end }, selection: { anchor: pos } });
+        keepInView(view, pos);
         await sleep(TICK_MS, signal);
         continue;
       }
@@ -215,7 +232,8 @@ export function Replay() {
     }
     if (keepTop) {
       await sleep(300, signal);
-      view.dispatch({ changes: { from: 0, to: keepTop }, selection: { anchor: 0 }, scrollIntoView: true });
+      view.dispatch({ changes: { from: 0, to: keepTop }, selection: { anchor: 0 } });
+      keepInView(view, 0);
     }
     if (view.state.doc.toString() !== next) setDoc(next);
   };
@@ -306,7 +324,7 @@ export function Replay() {
     setStage(stageAt(run?.steps[k]));
   };
 
-  if (error) return <div className="center">Couldn't load this run ({error}). <Link to="/agent">All runs</Link></div>;
+  if (error) return <Missing title="Couldn't load this run" text={`It may have been removed, or the connection dropped (${error}).`}><button onClick={() => navigate('/agent')}>All runs</button></Missing>;
   if (!run) return <div className="center">Loading…</div>;
 
   const shown = active ?? cursor; // the furthest step on screen, finished or in progress
@@ -356,9 +374,11 @@ export function Replay() {
       <TopBar active="runs">
         <div className="controls">
           <button onClick={() => (playing ? pause() : play())}>{playing ? '❚❚ Pause' : finished ? '↺ Replay' : '▶ Play'}</button>
-          <select aria-label="Speed" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-            {[0.5, 1, 2, 4].map((s) => <option key={s} value={s}>{s}×</option>)}
-          </select>
+          <div className="speed" role="radiogroup" aria-label="Speed">
+            {[0.5, 1, 2, 4].map((s) => (
+              <button key={s} role="radio" aria-checked={speed === s} className={speed === s ? 'on' : ''} onClick={() => setSpeed(s)}>{s}×</button>
+            ))}
+          </div>
           <button className="secondary" onClick={() => seek(last)} disabled={finished}>Skip to end</button>
           {run.galleryId && <button className="secondary" onClick={() => navigate(`/s/${run.galleryId}`)} title="Open the shader it kept in the editor, to play with or fork">Open in editor</button>}
         </div>

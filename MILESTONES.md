@@ -46,8 +46,8 @@ prepares you for. Write the code yourself and get each PR reviewed before mergin
 - Live on Render from `render.yaml` (Docker web service), auto-deploys on push to main; the site is
   also served from Netlify (docs/HOSTING.md).
 - The database moved from Render's free Postgres (which expires after 30 days) to Neon's free tier on
-  2026-11-19 (docs/MOVE_DB.md). `render.yaml` no longer mentions the old database; still to do by hand:
-  delete `shaderlab-db` in the Render dashboard.
+  2026-11-19 (docs/MOVE_DB.md). `render.yaml` no longer mentions the old database, and `shaderlab-db`
+  was deleted on Render the same day.
 
 ## M7. Shader agent (in progress; see docs/M7_EXPLAINED.md)
 - An agent that writes shaders from text or a sketch, compiles and renders them in headless Chrome,
