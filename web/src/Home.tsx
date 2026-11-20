@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { briefText, keptCode, type Run, type RunSummary } from './agentRun';
+import { FadeImg } from './FadeImg';
 import { LiveShader } from './LiveShader';
 import { duration, money } from './Runs';
 import { plain } from './prose';
@@ -225,7 +226,7 @@ export function Home() {
           <div className="picks">
             {PICKS.map((p) => (
               <div key={p.id} className="pick">
-                <Link to={`/s/${p.id}`}><img src={p.img} alt="" loading="lazy" /></Link>
+                <Link to={`/s/${p.id}`}><FadeImg src={p.img} alt="" loading="lazy" /></Link>
                 <div className="pick-title">
                   <Link to={`/s/${p.id}`}>{p.title}</Link>
                   {p.run && <Link to={`/agent/${p.run}`} className="tag" title="Written by the agent: watch the run">Agent</Link>}

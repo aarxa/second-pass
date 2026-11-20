@@ -191,7 +191,7 @@ button.small { padding: 4px 10px; font-size: 12px; }
 .run-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 22px 24px 40px; max-width: 1400px; }
 .run-card { display: flex; flex-direction: column; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 14px; color: var(--ink); text-decoration: none; }
 .run-card:hover { border-color: var(--ink); }
-.run-card .pic { position: relative; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; }
+.run-card .pic { position: relative; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: var(--raise); }
 .run-card .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .run-card .t { padding: 0 4px; font: var(--t-card); letter-spacing: -0.015em; }
@@ -344,6 +344,7 @@ button.small { padding: 4px 10px; font-size: 12px; }
 .run-row .meta { font: 500 12px var(--mono); color: var(--soft); }
 .run-row .chips { display: flex; gap: 5px; }
 .picks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.pick > a:first-child { display: block; border-radius: 10px; background: var(--raise); }
 .pick img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; display: block; border: 1px solid var(--line); }
 .pick a:hover img { border-color: var(--ink); }
 .pick-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-weight: 700; }
@@ -644,3 +645,17 @@ a.btn.secondary { background: transparent; color: var(--ink); border-color: var(
   .how-end span { margin-left: 0; flex-basis: 100%; }
 }
 @media (max-width: 560px) { .how-main { padding: 0 16px 40px; } .how-head { padding-top: 28px; } }
+
+/* Loading: pictures fade in over a soft placeholder; the runs list shows placeholder cards until it arrives. */
+img.fade { opacity: 0; transition: opacity 0.45s ease; }
+img.fade.in, img.fade.instant { opacity: 1; }
+img.fade.instant { transition: none; }
+.run-card.skeleton:hover { border-color: var(--line); }
+.run-card.skeleton .pic, .run-card.skeleton .bar { background: var(--raise); animation: pulse 1.4s ease-in-out infinite; }
+.run-card.skeleton .bar { height: 12px; border-radius: 4px; margin: 0 4px; width: 80%; }
+.run-card.skeleton .bar.t { height: 18px; width: 45%; margin-bottom: 4px; }
+.run-card.skeleton .bar.short { width: 35%; }
+@media (prefers-reduced-motion: reduce) {
+  img.fade { transition: none; }
+  .run-card.skeleton .pic, .run-card.skeleton .bar { animation: none; }
+}
