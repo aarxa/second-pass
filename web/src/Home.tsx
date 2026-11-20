@@ -7,7 +7,7 @@ import { LiveShader } from './LiveShader';
 import { duration, money } from './Runs';
 import { plain } from './prose';
 import { QUOTES } from './quotes';
-import { GITHUB_URL, TopBar } from './theme';
+import { GITHUB_URL, TopBar, usePageTitle } from './theme';
 
 // The runs the page features. If one is missing from the list, the page falls back to others.
 const HERO_RUN = 'black-hole';
@@ -33,6 +33,13 @@ const SNIPPET = `void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   if (uv.y < -0.1) col = sky * (0.3 + 0.1 * sin(uv.y * 90.0 + iTime));
   fragColor = vec4(col, 1.0);
 }`;
+// "Under the hood": the numbers behind it, each linking to its part of /how.
+const HOOD = [
+  { k: 'Live sync', big: '42 ms', text: 'for an edit to reach everyone else in the room, measured on the live site', to: 'editor' },
+  { k: 'Load test', big: '1,000', text: 'people editing at once on one CPU and 512 MB, each typing five keys a second', to: 'measured' },
+  { k: 'Renderer', big: 'WebGL2', text: 'written by hand, with no graphics library; compile errors land on the right line', to: 'renderer' },
+  { k: 'Agent', big: '4 frames', text: 'rendered on every pass and scored against the brief by a vision model', to: 'agent' },
+];
 const SNIPPET_CURSORS: Record<number, [string, string]> = { 3: ['Quiet Fox', '#f97316'], 6: ['Neon Koi', '#3b82f6'] };
 
 /** GLSL with a little colour, for the static code illustration. */
@@ -58,6 +65,7 @@ export function Home() {
   const [hero, setHero] = useState<Run | null>(null);
   const [loop, setLoop] = useState<Run | null>(null);
   const [sketchRun, setSketchRun] = useState<Run | null>(null);
+  usePageTitle();
 
   useEffect(() => {
     const get = <T,>(url: string) => fetch(url).then((r) => (r.ok ? (r.json() as Promise<T>) : Promise.reject(new Error(url))));
@@ -226,12 +234,27 @@ export function Home() {
             ))}
           </div>
         </section>
+
+        <section className="home-sec">
+          <div className="sec-head"><h2>Under the hood</h2><Link to="/how">How it's built →</Link></div>
+          <p className="sec-lede">Built from the ground up, and measured on the live site and in load tests.</p>
+          <div className="hood">
+            {HOOD.map((h) => (
+              <Link key={h.k} to={`/how#${h.to}`} className="hood-tile">
+                <span className="k">{h.k}</span>
+                <b>{h.big}</b>
+                <span className="d">{h.text}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
       </main>
       <footer className="home-foot">
         <span>Second Pass · made by Aarya Rajgor</span>
         <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
         <Link to="/agent">Runs</Link>
         <Link to="/gallery">Gallery</Link>
+        <Link to="/how">How it works</Link>
       </footer>
     </div>
   );

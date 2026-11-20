@@ -20,7 +20,7 @@ import { QUOTES } from './quotes';
 import { briefText, type Run, type RunStep } from './agentRun';
 import { Missing } from './Missing';
 import { duration, modelName, money } from './Runs';
-import { TopBar, editorTheme } from './theme';
+import { TopBar, editorTheme, usePageTitle } from './theme';
 
 const TICK_MS = 16;
 const PAUSE_MS = { compile: 700, render: 1100, judge: 2200, decide: 2400, stop: 300 }; // reading time at 1x
@@ -112,6 +112,7 @@ export function Replay() {
   const [speed, setSpeed] = useState(1);
   const [scrubbing, setScrubbing] = useState(false); // dragging the playhead along the reel
   const [errors, setErrors] = useState<string[]>([]);
+  usePageTitle(error ? 'Not found' : run ? `Run: ${run.title}` : null);
 
   const editorEl = useRef<HTMLDivElement>(null);
   const canvasEl = useRef<HTMLCanvasElement>(null);
