@@ -19,7 +19,7 @@ import { Inline, Prose, plain } from './prose';
 import { QUOTES } from './quotes';
 import { briefText, type Run, type RunStep } from './agentRun';
 import { Missing } from './Missing';
-import { duration, modelName, money } from './Runs';
+import { duration, modelName, money, Scores } from './Runs';
 import { Toolbar, TopBar, editorTheme, usePageTitle } from './theme';
 
 const TICK_MS = 16;
@@ -378,10 +378,10 @@ export function Replay() {
     <div className="page replay">
       <TopBar active="runs" />
       <Toolbar>
-        <Link to="/agent" className="back" title="All runs">← Runs</Link>
+        <Link to="/agent" className="back" title="All agent runs">← Agent runs</Link>
         <h1 className="run-title">{run.title}</h1>
         <span className="run-meta">
-          <span className="chips">{run.scores.map((s, i) => <span key={i} className={`score-chip${i === run.scores.length - 1 && run.passed ? ' ok' : ''}`}>{s}</span>)}</span>
+          <Scores scores={run.scores} />
           {run.rounds} {run.rounds === 1 ? 'pass' : 'passes'} · {money(run.costUsd)} · {duration(run.seconds)}
         </span>
         {run.galleryId && <Link className="btn secondary push" to={`/s/${run.galleryId}`} title="Open the shader it kept in the editor, to play with or fork">Open in editor</Link>}
@@ -410,7 +410,7 @@ export function Replay() {
             )}
             {current && <span className="tag"><i />Pass {current.round} · live preview</span>}
             <div className="stages" aria-label="Where the agent is">
-              {STAGES.map((s, i) => <span key={s} className={i === stageIndex ? 'now' : i < stageIndex ? 'done' : ''}>{s}</span>)}
+              {STAGES.map((s, i) => <span key={s} className={i === stageIndex ? 'now' : i < stageIndex ? 'done' : ''}>{s[0].toUpperCase() + s.slice(1)}</span>)}
             </div>
             {errors.length > 0 && <pre className="errors">{errors.join('\n')}</pre>}
           </div>
