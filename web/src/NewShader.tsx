@@ -38,13 +38,13 @@ export function NewShader() {
     <div className="page doc new-page">
       <TopBar />
       <main className="wrap picker">
-        <div className="picker-head">
-          <h1>Start a new shader</h1>
+        <header className="page-head">
+          <h1>New shader</h1>
           <p>Pick a starting point. It opens in the editor, where you can share the link and edit it with anyone.</p>
           {creating && <p className="waking" role="status">Creating it… if the server was asleep, waking it can take up to a minute.</p>}
           {failed === 'offline' && <p className="error-text" role="alert">Couldn't reach the server. Pick one again to retry.</p>}
           {failed === 'limit' && <p className="error-text" role="alert">That's a lot of new shaders from here in the last hour. Try again a little later, or fork one from the gallery.</p>}
-        </div>
+        </header>
         <div className="templates">
           {TEMPLATES.map((t) => (
             <button key={t.id} className={`template${creating === t.id ? ' busy' : ''}`} onClick={() => start(t)} disabled={creating !== null}>

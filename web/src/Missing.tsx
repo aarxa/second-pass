@@ -9,7 +9,6 @@ export function Missing({ title, text, children }: { title: string; text: string
     <div className="page doc">
       <TopBar />
       <main className="wrap missing">
-        <div className="kick">Nothing here</div>
         <h1>{title}</h1>
         <p>{text}</p>
         <div className="missing-actions">{children}</div>

@@ -1,6 +1,6 @@
 // The look shared by every page: the header with the wordmark and the light/dark toggle, and the
 // code editor's colours. Colours are CSS variables (styles.css), so one CodeMirror theme serves both
-// the light "lightbox" and the dark "projection booth" modes and switches without rebuilding the editor.
+// modes and switches without rebuilding the editor. Dark is the default; light is the visitor's choice.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { EditorView } from 'codemirror';
@@ -9,23 +9,11 @@ import { tags as t } from '@lezer/highlight';
 
 type Mode = 'light' | 'dark';
 const KEY = 'secondpass.theme';
-const media = () => window.matchMedia('(prefers-color-scheme: dark)');
-
-/** The theme on screen: the visitor's saved choice, else their system setting. */
-function currentMode(): Mode {
-  const set = document.documentElement.dataset.theme;
-  if (set === 'light' || set === 'dark') return set;
-  return media().matches ? 'dark' : 'light';
-}
+/** The theme on screen: light only if the visitor picked it, else dark. */
+const currentMode = (): Mode => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 
 export function ThemeToggle() {
   const [mode, setMode] = useState<Mode>(currentMode);
-  useEffect(() => {
-    const m = media();
-    const follow = () => setMode(currentMode());
-    m.addEventListener('change', follow);
-    return () => m.removeEventListener('change', follow);
-  }, []);
   const flip = () => {
     const next: Mode = mode === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
@@ -33,15 +21,13 @@ export function ThemeToggle() {
     setMode(next);
   };
   return (
-    <button className="icon-btn" onClick={flip} aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} title={mode === 'dark' ? 'Lightbox (light)' : 'Projection booth (dark)'}>
+    <button className="icon-btn" onClick={flip} aria-label={`Switch to ${mode === 'dark' ? 'light' : 'dark'} mode`} title={mode === 'dark' ? 'Light mode' : 'Dark mode'}>
       {mode === 'dark'
         ? <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4.5" /><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" /></svg>
         : <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" /></svg>}
     </button>
   );
 }
-
-export const GITHUB_URL = 'https://github.com/aarxa/second-pass';
 
 /** Names the browser tab (and the history entry): "Black hole · Second Pass". With no name, just "Second Pass". */
 export function usePageTitle(name?: string | null) {
@@ -51,7 +37,7 @@ export function usePageTitle(name?: string | null) {
 }
 
 type Section = 'runs' | 'gallery' | 'how';
-const NAV: [Section, string, string][] = [['runs', '/agent', 'Runs'], ['gallery', '/gallery', 'Gallery'], ['how', '/how', 'How it works']];
+const NAV: [Section, string, string][] = [['gallery', '/gallery', 'Gallery'], ['runs', '/agent', 'Agent runs'], ['how', '/how', 'How it works']];
 
 /**
  * The top bar: the same on every page, pinned to the top. A page's own tools (the editor's title and
@@ -68,7 +54,6 @@ export function TopBar({ active }: { active?: Section }) {
           ))}
         </nav>
         <div className="top-end">
-          <a className="gh" href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
           <ThemeToggle />
           <Link className="btn" to="/new">New shader</Link>
         </div>
@@ -87,8 +72,7 @@ export function SiteFooter() {
   return (
     <footer className="site-foot">
       <div className="wrap">
-        <span>Second Pass · MIT licence · made by Aarya Rajgor</span>
-        <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
+        <span>Second Pass · made by Aarya Rajgor</span>
         {NAV.map(([key, to, label]) => <Link key={key} to={to}>{label}</Link>)}
       </div>
     </footer>

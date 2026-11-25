@@ -1,10 +1,10 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// The two fonts are bundled with the app (src/main.tsx imports them). This preloads the Latin files
+// The code font is bundled with the app (src/main.tsx imports it; the rest of the app uses the system font). This preloads its Latin files
 // every page uses, so the browser fetches them alongside the CSS instead of after it, and the text
 // is drawn in the right font from the start rather than swapping once they arrive.
-const PRELOAD = /^(inter-tight-latin-wght-normal|dm-mono-latin-400-normal|dm-mono-latin-500-normal)-[\w-]+\.woff2$/;
+const PRELOAD = /^(dm-mono-latin-400-normal|dm-mono-latin-500-normal)-[\w-]+\.woff2$/;
 function preloadFonts(): Plugin {
   return {
     name: 'preload-fonts',

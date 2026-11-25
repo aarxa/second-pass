@@ -1,6 +1,6 @@
 // Gallery: the shaders someone added (new ones are drafts until then), most recently added first,
 // loaded a page at a time with the server's cursor. Hovering a card runs the real shader in it; the
-// ones the agent wrote carry a "By the agent" badge that links to their replay, and show its score.
+// ones the agent wrote say so under the picture, with the judge's score, and link to their replay.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { RunSummary } from './agentRun';
@@ -105,13 +105,14 @@ function Card({ it, run, forkedTitle }: { it: Item; run?: RunSummary; forkedTitl
           )}
           {hover && code && <LiveShader code={code} label={it.title} />}
         </Link>
-        {run && <Link to={`/agent/${run.id}`} className="agent-badge" title="Written by the agent: watch the run">By the agent</Link>}
       </div>
       <div className="card-row">
         <div className="card-body">
           <Link to={`/s/${it.id}`} className="card-title">{it.title}</Link>
           <div className="card-meta">
-            {run ? `Judge ${score}/10 · ${run.rounds} ${run.rounds === 1 ? 'pass' : 'passes'}` : added(it.publishedAt)}
+            {run
+              ? <Link to={`/agent/${run.id}`} title="Watch the agent's run">By the agent · {score}/10</Link>
+              : added(it.publishedAt)}
             {it.forkedFrom && <> · forked from {forkedTitle ?? it.forkedFrom}</>}
           </div>
         </div>
@@ -176,16 +177,16 @@ export function Gallery() {
     <div className="page doc gallery-page">
       <TopBar active="gallery" />
       <main className="wrap">
-      <div className="gallery-bar">
+      <header className="page-head">
         <h1>Gallery</h1>
-        <div className="filters" role="group" aria-label="Show">
-          {([['all', 'All'], ['agent', 'By the agent'], ['people', 'By people']] as [Filter, string][]).map(([f, label]) => (
-            <button key={f} className={`chip${filter === f ? ' on' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>
-              {label}{items.length > 0 && <span>{count(f)}</span>}
-            </button>
-          ))}
-        </div>
-        <p className="gallery-hint"><span className="hover-only">Hover a card to run it. </span>Open one to see the code, or fork it to make your own.</p>
+        <p>Shaders people and the agent have added. <span className="hover-only">Hover one to run it. </span>Open one to see the code, or fork it to make your own.</p>
+      </header>
+      <div className="tabs" role="group" aria-label="Show">
+        {([['all', 'All'], ['agent', 'By the agent'], ['people', 'By people']] as [Filter, string][]).map(([f, label]) => (
+          <button key={f} className={`tab${filter === f ? ' on' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>
+            {label}{items.length > 0 && <span>{count(f)}</span>}
+          </button>
+        ))}
       </div>
       {slow && (
         <p className="waking-line" role="status"><i className="spinner" aria-hidden="true" /> Waking the server… the free server sleeps when nobody has used it for a while. This takes up to a minute.</p>

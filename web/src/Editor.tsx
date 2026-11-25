@@ -542,7 +542,7 @@ export function Editor() {
           />
           {nameFirst && <span className="hint">Give it a name to add it to the gallery</span>}
         </div>
-        {inGallery !== null && <span className={`state-tag${inGallery ? ' gal' : ''}`}>{inGallery ? '✓ In gallery' : 'Draft'}</span>}
+        {inGallery !== null && <span className={`state-tag${inGallery ? ' gal' : ''}`}>{inGallery ? 'In gallery' : 'Draft'}</span>}
         <span className={`live ${status}`}>{status === 'connected' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Offline'}</span>
         <div className="peers">
           {/* You: your own circle, marked by a soft pulse. Everyone is anonymous (a random animal name). */}
