@@ -1,17 +1,16 @@
 // /agent: saved runs of the shader agent, each one replayable. The list is a static file
 // (web/public/agent-runs/index.json, written by `npm run export-run` in agent/), so it costs nothing.
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { briefText, type RunSummary } from './agentRun';
 import { FadeImg } from './FadeImg';
-import { TopBar, usePageTitle } from './theme';
+import { SiteFooter, TopBar, usePageTitle } from './theme';
 
 export const money = (usd: number) => (usd < 0.01 ? '<$0.01' : `$${usd.toFixed(2)}`);
 export const duration = (s: number) => (s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`);
 export const modelName = (id: string) => id.replace(/^claude-/, '').replace(/-(\d+)-(\d+)$/, ' $1.$2').replace(/^./, (c) => c.toUpperCase());
 
 export function Runs() {
-  const navigate = useNavigate();
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   usePageTitle('Runs');
@@ -24,10 +23,9 @@ export function Runs() {
   }, []);
 
   return (
-    <div className="page runs-page">
-      <TopBar active="runs">
-        <button className="push" onClick={() => navigate('/new')}>New shader</button>
-      </TopBar>
+    <div className="page doc runs-page">
+      <TopBar active="runs" />
+      <main className="wrap">
       <section className="runs-hero">
         <div className="kick">Agent runs</div>
         <h1>Every run, replayed step by step.</h1>
@@ -41,13 +39,15 @@ export function Runs() {
           <span className="judge">Judge</span><i>→</i><span>7+ keep</span><span className="loop">under 7 → another pass ↺</span>
         </div>
       </section>
-      {error && <p className="error-text" style={{ padding: '0 24px' }}>Couldn't load the runs ({error}).</p>}
+      {error && <p className="error-text">Couldn't load the runs ({error}).</p>}
       <div className="run-list">
         {runs === null && !error && Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="run-card skeleton" aria-hidden="true"><div className="pic" /><div className="bar t" /><div className="bar" /><div className="bar short" /></div>
         ))}
         {runs?.map((r) => <RunCard key={r.id} r={r} />)}
       </div>
+      </main>
+      <SiteFooter />
     </div>
   );
 }

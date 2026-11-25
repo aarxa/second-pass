@@ -50,19 +50,48 @@ export function usePageTitle(name?: string | null) {
   }, [name]);
 }
 
-/** The top bar on every page. `children` go between the navigation and the theme toggle. */
-export function TopBar({ active, children }: { active?: 'home' | 'runs' | 'gallery' | 'how'; children?: ReactNode }) {
+type Section = 'runs' | 'gallery' | 'how';
+const NAV: [Section, string, string][] = [['runs', '/agent', 'Runs'], ['gallery', '/gallery', 'Gallery'], ['how', '/how', 'How it works']];
+
+/**
+ * The top bar: the same on every page, pinned to the top. A page's own tools (the editor's title and
+ * Share, the replay's run) go in a <Toolbar> under it, never in here, so nothing in it moves between pages.
+ */
+export function TopBar({ active }: { active?: Section }) {
   return (
     <header className="top">
-      <Link to="/" className="mark" aria-label="Second Pass, home">Second<span>/</span>Pass</Link>
-      <nav className="nav">
-        <Link to="/agent" className={active === 'runs' ? 'on' : ''}>Runs</Link>
-        <Link to="/gallery" className={active === 'gallery' ? 'on' : ''}>Gallery</Link>
-        <Link to="/how" className={active === 'how' ? 'on' : ''}>How it works</Link>
-      </nav>
-      {children}
-      <ThemeToggle />
+      <div className="top-in">
+        <Link to="/" className="mark" aria-label="Second Pass, home">Second<span>/</span>Pass</Link>
+        <nav className="nav" aria-label="Main">
+          {NAV.map(([key, to, label]) => (
+            <Link key={key} to={to} className={active === key ? 'on' : ''} aria-current={active === key ? 'page' : undefined}>{label}</Link>
+          ))}
+        </nav>
+        <div className="top-end">
+          <a className="gh" href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
+          <ThemeToggle />
+          <Link className="btn" to="/new">New shader</Link>
+        </div>
+      </div>
     </header>
+  );
+}
+
+/** A page's own row of tools under the top bar (the editor, a replay). */
+export function Toolbar({ children }: { children: ReactNode }) {
+  return <div className="toolbar">{children}</div>;
+}
+
+/** The footer on every page that scrolls (not the editor or a replay, which fill the window). */
+export function SiteFooter() {
+  return (
+    <footer className="site-foot">
+      <div className="wrap">
+        <span>Second Pass · MIT licence · made by Aarya Rajgor</span>
+        <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
+        {NAV.map(([key, to, label]) => <Link key={key} to={to}>{label}</Link>)}
+      </div>
+    </footer>
   );
 }
 

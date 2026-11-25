@@ -2,10 +2,10 @@
 // what was built by hand and what was borrowed, the problems found by measuring, how the agent checks
 // itself and how the agent is evaluated, and the tests. The runs list is the static file the Runs page reads.
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { RunSummary } from './agentRun';
 import { duration, money } from './Runs';
-import { GITHUB_URL, TopBar, usePageTitle } from './theme';
+import { GITHUB_URL, SiteFooter, TopBar, usePageTitle } from './theme';
 
 const SECTIONS: [string, string][] = [
   ['built', 'Built by hand'],
@@ -94,7 +94,6 @@ const TESTS: [string, string, number][] = [
 
 export function HowItWorks() {
   usePageTitle('How it works');
-  const { hash } = useLocation();
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
 
   useEffect(() => {
@@ -104,18 +103,10 @@ export function HowItWorks() {
       .catch(() => setRuns([]));
   }, []);
 
-  // Links like /how#agent: the router doesn't scroll to the section by itself.
-  useEffect(() => {
-    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
-    else window.scrollTo(0, 0);
-  }, [hash]);
-
   return (
-    <div className="page how-page">
-      <TopBar active="how">
-        <a className="gh" href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
-      </TopBar>
-      <main className="how-main">
+    <div className="page doc how-page">
+      <TopBar active="how" />
+      <main className="wrap how-main">
         <header className="how-head">
           <div className="kick">How it's built</div>
           <h1>Built from scratch, then measured</h1>
@@ -239,9 +230,9 @@ export function HowItWorks() {
         <footer className="how-end">
           <a className="btn" href={GITHUB_URL} target="_blank" rel="noreferrer">Read the code on GitHub</a>
           <Link className="btn secondary" to="/agent">Watch a run</Link>
-          <span>MIT licence · made by Aarya Rajgor</span>
         </footer>
       </main>
+      <SiteFooter />
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import { ShaderRenderer, type CompileError } from './renderer';
 import { getIdentity, initials } from './identity';
 import { sendOnlyLocalAwareness } from './awareness';
-import { TopBar, editorTheme, usePageTitle } from './theme';
+import { Toolbar, TopBar, editorTheme, usePageTitle } from './theme';
 import { collabUrl } from './server';
 import { forgetOwnerKey, removalKey, saveOwnerKey } from './keys';
 import { Reference } from './Reference';
@@ -523,7 +523,8 @@ export function Editor() {
 
   return (
     <div className="page editor-page">
-      <TopBar>
+      <TopBar />
+      <Toolbar>
         <div className="title-block">
           <input
             ref={titleEl}
@@ -580,7 +581,7 @@ export function Editor() {
             {copied === 'ok' ? 'Link copied ✓' : 'Share'}
           </button>
         </div>
-      </TopBar>
+      </Toolbar>
       {inGallery && (
         <div className="lock-banner" role="status">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 018 0v3" /></svg>

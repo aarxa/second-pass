@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LiveShader } from './LiveShader';
 import { TEMPLATES, type Template } from './templates';
-import { TopBar, usePageTitle } from './theme';
+import { SiteFooter, TopBar, usePageTitle } from './theme';
 
 export function NewShader() {
   const navigate = useNavigate();
@@ -35,9 +35,9 @@ export function NewShader() {
   };
 
   return (
-    <div className="page new-page">
+    <div className="page doc new-page">
       <TopBar />
-      <main className="picker">
+      <main className="wrap picker">
         <div className="picker-head">
           <h1>Start a new shader</h1>
           <p>Pick a starting point. It opens in the editor, where you can share the link and edit it with anyone.</p>
@@ -55,6 +55,7 @@ export function NewShader() {
           ))}
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }
